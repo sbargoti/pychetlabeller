@@ -225,7 +225,7 @@ class MainWindow(QtGui.QMainWindow):
         # self.ui.graphicsView.viewport().installEventFilter(self)
 
         # For debuging
-        self.quickview()
+        # self.quickview()
 
     def connectSignals(self):
         """ Connect all the components on the GUI to respective functions """
