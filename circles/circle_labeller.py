@@ -264,7 +264,7 @@ class MainWindow(QtGui.QMainWindow):
 
         self.ui.graphicsView.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOff)
         self.ui.graphicsView.setVerticalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOff)
-        self.ui.graphicsView.setFocusPolicy(QtCore.Qt.NoFocus)
+        # self.ui.graphicsView.setFocusPolicy(QtCore.Qt.NoFocus)
 
     def eventFilter(self, QObject, QEvent):
         """

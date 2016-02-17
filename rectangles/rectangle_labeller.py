@@ -112,8 +112,8 @@ class RectangleDrawPanel(QtGui.QGraphicsPixmapItem):
 
         # Draw the highlighted rectangles
         if self.highlight_annotation >= 0:
-            x, y, r, l = self.annotations[self.highlight_annotation, :4] * self.current_scale
-            l = self.highlight_annotation[cc,4]
+            x, y, dx, dy = self.annotations[self.highlight_annotation, :4] * self.current_scale
+            l = self.annotations[cc, 4]
             QPainter.setBrush(self.highlightbrushes[int(l)])
             # QPainter.drawEllipse(i-r, j-r, 2*r, 2*r)
             QPainter.drawRect(x, y, dx, dy)
@@ -272,7 +272,7 @@ class MainWindow(QtGui.QMainWindow):
 
         self.ui.graphicsView.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOff)
         self.ui.graphicsView.setVerticalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOff)
-        self.ui.graphicsView.setFocusPolicy(QtCore.Qt.NoFocus)
+        # self.ui.graphicsView.setFocusPolicy(QtCore.Qt.NoFocus)
 
     def eventFilter(self, QObject, QEvent):
         """
@@ -357,6 +357,7 @@ class MainWindow(QtGui.QMainWindow):
                 self.updateTree()
 
         # Change label options
+        print QtCore.QString(QtCore.QChar(event.key()))
         for num in range(9)[1:]:
             if QtCore.QString(QtCore.QChar(event.key())) == str(num):
                 self.imagePanel.label = num
