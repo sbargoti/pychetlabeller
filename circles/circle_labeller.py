@@ -14,6 +14,17 @@ import numpy as np
 from PyQt4 import QtGui, QtCore
 from pychetlabeller.circles.circle_labeller_ui import Ui_MainWindow
 
+_colors = [[255,   0,   0, 255],
+           [255, 165,   0, 255],
+           [179, 255,   0, 255],
+           [ 13, 255,   0, 255],
+           [  0, 255, 151, 255],
+           [  0, 193, 255, 255],
+           [  0,  27, 255, 255],
+           [137,   0, 255, 255],
+           [255,   0, 207, 255],
+           [255,   0,  41, 255]]
+
 class ImageDrawPanel(QtGui.QGraphicsPixmapItem):
     """
     Establish a pixmap item on which labelling (painting) will be performed
@@ -30,7 +41,8 @@ class ImageDrawPanel(QtGui.QGraphicsPixmapItem):
 
         # Annotation parameters
         self.radius = float(10)
-        self.opacity = 50 # Opacity of annotation
+        self.opacity = 60 # Opacity of annotation
+        self.highlight_opacity = 100
         self.label = 1 # Label of circle
 
         # Annotation results
@@ -42,6 +54,7 @@ class ImageDrawPanel(QtGui.QGraphicsPixmapItem):
         self.pen = QtGui.QPen(QtCore.Qt.SolidLine)
         self.pen.setColor(QtCore.Qt.black)
         self.pen.setWidth(1)
+        self.num_labels = 9
         self.setBrushes()
         self.highlight_centroid = -1 # Index of highlighted annotation
 
@@ -55,8 +68,20 @@ class ImageDrawPanel(QtGui.QGraphicsPixmapItem):
         Set the brushes for normal view, annotated view, highlighted view
         """
         self.testbursh =  QtGui.QBrush(QtGui.QColor(255, 255, 0, self.opacity))
+
         self.savebrush = QtGui.QBrush(QtGui.QColor(255, 0, 0, self.opacity))
+
+        self.savebrushes = [QtGui.QBrush(QtGui.QColor(_colors[label_no][0],
+                                                      _colors[label_no][1],
+                                                      _colors[label_no][2],
+                                                      self.opacity)) for label_no in range(10)]
+
         self.highlightbrush = QtGui.QBrush(QtGui.QColor(0, 0, 255, self.opacity))
+
+        self.highlightbrushes = [QtGui.QBrush(QtGui.QColor(_colors[label_no][0],
+                                                           _colors[label_no][1],
+                                                           _colors[label_no][2],
+                                                           self.highlight_opacity)) for label_no in range(10)]
 
     def paint(self, QPainter, QStyleOptionGraphicsItem, QWidget):
         """
@@ -74,15 +99,16 @@ class ImageDrawPanel(QtGui.QGraphicsPixmapItem):
 
         # Draw the annotated circles
         if self.centroid_counter > 0:
-            QPainter.setBrush(self.savebrush)
             for cc in range(self.centroid_counter):
-                i, j, r = self.centroids[cc,:3]*self.current_scale
+                i, j, r, l = self.centroids[cc,:4]*self.current_scale
+                QPainter.setBrush(self.savebrushes[int(l)])
+                # QPainter.setBrush(self.savebrush)
                 QPainter.drawEllipse(i-r, j-r, 2*r, 2*r)
 
         # Draw the highlighted circles
         if self.highlight_centroid >= 0:
-            QPainter.setBrush(self.highlightbrush)
-            i, j, r = self.centroids[self.highlight_centroid,:3]*self.current_scale
+            i, j, r, l = self.centroids[self.highlight_centroid,:4]*self.current_scale
+            QPainter.setBrush(self.highlightbrushes[int(l)])
             QPainter.drawEllipse(i-r, j-r, 2*r, 2*r)
 
     # Set events for mouse hovers - As the mouse enters the image, change to cross cursor,
@@ -121,6 +147,7 @@ class ImageDrawPanel(QtGui.QGraphicsPixmapItem):
             self.parent.updateTree()
         else:
             self.setFlag(QtGui.QGraphicsItem.ItemIsMovable, True)
+            print self.scenePos()
             self.setCursor(QtGui.QCursor(QtCore.Qt.ClosedHandCursor))
 
     def mouseReleaseEvent(self, QGraphicsSceneMouseEvent):
@@ -185,8 +212,11 @@ class MainWindow(QtGui.QMainWindow):
         # Initialise status
         self.ui.statusBar.showMessage('Welcome to the future of image annotation..!')
 
+        # Set graphics screen properties
+        self.setscreenproperties()
+
         # For debuging
-        # self.quickview()
+        self.quickview()
 
     def connectSignals(self):
         """ Connect all the components on the GUI to respective functions """
@@ -217,6 +247,16 @@ class MainWindow(QtGui.QMainWindow):
         # Imaging properties
         self.connect(self.ui.brightness_slider, QtCore.SIGNAL('valueChanged(int)'), self.change_brightness)
         self.connect(self.ui.contrast_slider, QtCore.SIGNAL('valueChanged(int)'), self.change_contrast)
+
+    def setscreenproperties(self):
+        """
+        Set scene properties - disable scrolling
+        """
+
+        self.ui.graphicsView.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOff)
+        self.ui.graphicsView.setVerticalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOff)
+        # self.ui.graphicsView.setFocusPolicy(QtCore.Qt.NoFocus)
+
 
     def wheelEvent(self, QWheelEvent):
         """
@@ -253,7 +293,7 @@ class MainWindow(QtGui.QMainWindow):
             self.imagePanel.radius -= 1
 
         # Zoom in and out of the image
-        if event.key() == QtCore.Qt.Key_Equal:
+        if event.key() == QtCore.Qt.Key_Equal or event.key() == QtCore.Qt.Key_Plus:
             self.zoomIn()
         if event.key() == QtCore.Qt.Key_Minus:
             self.zoomOut()
@@ -436,6 +476,10 @@ class MainWindow(QtGui.QMainWindow):
         self.change_brightness_contrast()
         self.scene.addItem(self.imagePanel)
         self.ui.graphicsView.setScene(self.scene)
+        self.ui.graphicsView.setSceneRect(0, 0,
+                                          self.ui.graphicsView.size().width()-10,
+                                          self.ui.graphicsView.size().height()-10)
+
 
     def loadImage(self,image_path):
         """ Given an image path, load image onto graphics item """
@@ -443,6 +487,10 @@ class MainWindow(QtGui.QMainWindow):
         # Get current pixmap
         self.pixmap = QtGui.QPixmap(image_path)
         pixmap = self.pixmap
+        if self.original_size is not None:
+            assert pixmap.width() == self.original_size[1] and \
+                   pixmap.height() == self.original_size[0], \
+                "Images in the folder need to be of the same size"
 
         # Resize according to previous shape/size
         if self.original_size is not None:
@@ -504,6 +552,7 @@ class MainWindow(QtGui.QMainWindow):
         if imagesFolder is None:
             # Specify default folder for quick access
             self.default_directory = "/media/suchet/d-drive/data/processed/2013-03-20-melbourne-apple-farm/shrimp/Run4-5/ladybug/appleBinaryCombined"
+            self.default_directory = "/media/suchet/d-drive/Dropbox/ACFR PhD/Experimental-Results/mango-labelling-2016/circle-labels"
 
             # Get output from browser
             self.imagesFolder = str(QtGui.QFileDialog.getExistingDirectory(self, "Open directory", self.default_directory))
@@ -654,6 +703,8 @@ class MainWindow(QtGui.QMainWindow):
         # Manually set image to load
         folder_path = '/media/suchet/d-drive/data/processed/2013-03-20-melbourne-apple-farm/shrimp/Run4-5/ladybug/appleBinaryCombined/images/'
         image_path = os.path.join(folder_path , '20130320T013717.962834_44.png')
+        folder_path = '/media/suchet/d-drive/Dropbox/ACFR PhD/Experimental-Results/mango-labelling-2016/circle-labels/images'
+        image_path = os.path.join(folder_path , '20151124T025455.360524.png')
 
         # Load image and set original size
         self.pixmap = QtGui.QPixmap(image_path)
@@ -668,7 +719,6 @@ class MainWindow(QtGui.QMainWindow):
         self.change_brightness_contrast()
         self.scene.addItem(self.imagePanel)
         self.ui.graphicsView.setScene(self.scene)
-
 
 def convertQImageToMat(incomingImage):
     '''  Converts a QImage into an opencv MAT format  '''

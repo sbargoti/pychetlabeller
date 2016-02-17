@@ -162,7 +162,7 @@ class Ui_MainWindow(object):
         self.treeWidget.setObjectName(_fromUtf8("treeWidget"))
         self.verticalLayout_2.addWidget(self.treeWidget)
         self.gridLayout_3.addWidget(self.frame, 0, 3, 1, 1)
-        self.graphicsView = QtGui.QGraphicsView(self.centralwidget)
+        self.graphicsView = FitWindowGraphicsView(self.centralwidget)
         self.graphicsView.setObjectName(_fromUtf8("graphicsView"))
         self.gridLayout_3.addWidget(self.graphicsView, 0, 0, 1, 3)
         MainWindow.setCentralWidget(self.centralwidget)
@@ -244,4 +244,13 @@ class Ui_MainWindow(object):
         self.actionSave_Label.setText(_translate("MainWindow", "Save Label", None))
         self.actionExit_3.setText(_translate("MainWindow", "Exit", None))
         self.actionAbout.setText(_translate("MainWindow", "About", None))
+
+class FitWindowGraphicsView(QtGui.QGraphicsView):
+    """
+    Resize function for window to properly fit an image.
+    """
+
+    def showEvent(self, QShowEvent):
+        self.fitInView(self.sceneRect(), QtCore.Qt.KeepAspectRatio)
+
 
