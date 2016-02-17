@@ -14,23 +14,24 @@ import numpy as np
 from PyQt4 import QtGui, QtCore
 from pychetlabeller.circles.circle_labeller_ui import Ui_MainWindow
 
-_colors = [[255,   0,   0, 255],
-           [255, 165,   0, 255],
-           [179, 255,   0, 255],
-           [ 13, 255,   0, 255],
-           [  0, 255, 151, 255],
-           [  0, 193, 255, 255],
-           [  0,  27, 255, 255],
-           [137,   0, 255, 255],
-           [255,   0, 207, 255],
-           [255,   0,  41, 255]]
+_colors = [[137,   0, 255],
+           [255,   0,   0],
+           [179, 179,   0],
+           [  0, 255, 151],
+           [  0, 193, 255],
+           [  0,  27, 255],
+           [137,   0, 255],
+           [255, 165,   0],
+           [255,   0,  41],
+           [ 13, 255,   0],
+           [255,   0, 207]]
 
-class ImageDrawPanel(QtGui.QGraphicsPixmapItem):
+class CircleDrawPanel(QtGui.QGraphicsPixmapItem):
     """
     Establish a pixmap item on which labelling (painting) will be performed
     """
     def __init__(self, pixmap=None, parent=None, scene=None):
-        super(ImageDrawPanel, self).__init__()
+        super(CircleDrawPanel, self).__init__()
 
         # Initialise variables
         # Class variables
@@ -100,14 +101,15 @@ class ImageDrawPanel(QtGui.QGraphicsPixmapItem):
         # Draw the annotated circles
         if self.centroid_counter > 0:
             for cc in range(self.centroid_counter):
-                i, j, r, l = self.centroids[cc,:4]*self.current_scale
+                i, j, r = self.centroids[cc,:3]*self.current_scale
+                l = self.centroids[cc,3]
                 QPainter.setBrush(self.savebrushes[int(l)])
-                # QPainter.setBrush(self.savebrush)
                 QPainter.drawEllipse(i-r, j-r, 2*r, 2*r)
 
         # Draw the highlighted circles
         if self.highlight_centroid >= 0:
-            i, j, r, l = self.centroids[self.highlight_centroid,:4]*self.current_scale
+            i, j, r, l = self.centroids[self.highlight_centroid,:4]
+            l = self.highlight_centroid[cc,3]
             QPainter.setBrush(self.highlightbrushes[int(l)])
             QPainter.drawEllipse(i-r, j-r, 2*r, 2*r)
 
@@ -209,11 +211,18 @@ class MainWindow(QtGui.QMainWindow):
         self.ui.treeWidget.keyPressEvent = self.treeKeyPress
         self.ui.treeWidget.mousePressEvent = self.treeMousePress
 
+        # Redefine graphics view with new class
+        self.ui.graphicsView = FitImageGraphicsView(self.ui.centralwidget)
+        self.ui.graphicsView.setObjectName(QtCore.QString.fromUtf8("graphicsView"))
+        self.ui.gridLayout_3.addWidget(self.ui.graphicsView, 0, 0, 1, 3)
+
         # Initialise status
         self.ui.statusBar.showMessage('Welcome to the future of image annotation..!')
 
         # Set graphics screen properties
         self.setscreenproperties()
+
+        # self.ui.graphicsView.viewport().installEventFilter(self)
 
         # For debuging
         self.quickview()
@@ -255,8 +264,15 @@ class MainWindow(QtGui.QMainWindow):
 
         self.ui.graphicsView.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOff)
         self.ui.graphicsView.setVerticalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOff)
-        # self.ui.graphicsView.setFocusPolicy(QtCore.Qt.NoFocus)
+        self.ui.graphicsView.setFocusPolicy(QtCore.Qt.NoFocus)
 
+    def eventFilter(self, QObject, QEvent):
+        """
+        Filter out wheel event from the window - we want to reserve the wheel for other commands
+        """
+        if QObject == self.ui.graphicsView.viewport() and QEvent.type() == QtCore.QEvent.Wheel:
+            return True
+        return False
 
     def wheelEvent(self, QWheelEvent):
         """
@@ -346,7 +362,6 @@ class MainWindow(QtGui.QMainWindow):
         self.imagePanel.current_scale = self.multiplier
         self.imagePanel.radius *= ratio
         self.imagePanel.x = -1
-
 
     def zoomOut(self):
         """ Rescale pixmap to simulate a zooming out motion """
@@ -470,7 +485,7 @@ class MainWindow(QtGui.QMainWindow):
 
         # Set scene and add to graphics view
         self.scene = QtGui.QGraphicsScene()
-        self.imagePanel = ImageDrawPanel(scene=self.scene, parent=self)
+        self.imagePanel = CircleDrawPanel(scene=self.scene, parent=self)
         self.imagePanel.setPixmap(self.pixmap)
         self.imagePanel.defaultColorPixmap = self.pixmap
         self.change_brightness_contrast()
@@ -488,8 +503,8 @@ class MainWindow(QtGui.QMainWindow):
         self.pixmap = QtGui.QPixmap(image_path)
         pixmap = self.pixmap
         if self.original_size is not None:
-            assert pixmap.width() == self.original_size[1] and \
-                   pixmap.height() == self.original_size[0], \
+            assert pixmap.width() == self.original_size[0] and \
+                   pixmap.height() == self.original_size[1], \
                 "Images in the folder need to be of the same size"
 
         # Resize according to previous shape/size
@@ -713,12 +728,23 @@ class MainWindow(QtGui.QMainWindow):
 
         # Set graphics scene and add image
         self.scene = QtGui.QGraphicsScene()
-        self.imagePanel = ImageDrawPanel(scene=self.scene, parent=self)
+        self.imagePanel = CircleDrawPanel(scene=self.scene, parent=self)
         self.imagePanel.setPixmap(self.pixmap)
         self.imagePanel.defaultColorPixmap = self.pixmap
         self.change_brightness_contrast()
         self.scene.addItem(self.imagePanel)
         self.ui.graphicsView.setScene(self.scene)
+        self.ui.graphicsView.setSceneRect(self.scene.itemsBoundingRect())
+
+class FitImageGraphicsView(QtGui.QGraphicsView):
+    """
+    Resize function for window to properly fit an image.
+    """
+
+    def showEvent(self, QShowEvent):
+        self.fitInView(self.sceneRect(), QtCore.Qt.KeepAspectRatio)
+
+
 
 def convertQImageToMat(incomingImage):
     '''  Converts a QImage into an opencv MAT format  '''
