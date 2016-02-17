@@ -66,10 +66,10 @@ A few notes:
 
 ### Annotations
 The annotations are saved in csv format with the same name as the input image
-file. The csv entries are *item, centre-x, centre-y, radius, label id*.
+file. The csv entries for circles are *item, centre-x, centre-y, radius, label id*. The csv entries for rectangles are *item, topleft-x, topleft-y, width, height, label id*.
 
 By default the annotations are saved in the image parent directory under a new
-folder: circle-labels. The user can choose to manually set a different folder
+folder: circle-labels/rectangle_labels. The user can choose to manually set a different folder
 for the labels.
 
 ### Single images
