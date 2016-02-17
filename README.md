@@ -24,7 +24,7 @@ address these features.
 
 ## Installation
 1. Clone this repository
-2. Add base directory (where pychetlabeller is stored) to python path by adding the following line to your ~/.bashrc
+2. Add base directory (where pychetlabeller is stored) to python path by adding the line below to your ~/.bashrc
 
     git clone https://github.com/sbargoti/pychetlabeller.git pychetlabeller
     export PYTHONPATH=$PYTHONPATH:$HOME/code/python/development/

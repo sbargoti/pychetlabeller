@@ -1,18 +1,18 @@
 #! /usr/bin/python
 
 __author__ = 'suchet'
-__date__ = '28/10/15'
+__date__ = '17/02/16'
 
 """
 Image annotation tool.
-Annotate using circular shapes
+Annotate using rectangular shapes
 """
 
 import sys, os, csv
 import numpy as np
 
 from PyQt4 import QtGui, QtCore
-from pychetlabeller.circles.circle_labeller_ui import Ui_MainWindow
+from pychetlabeller.rectangles.rectangle_labeller_ui import Ui_MainWindow
 
 _colors = [[137,   0, 255],
            [255,   0,   0],
@@ -26,12 +26,12 @@ _colors = [[137,   0, 255],
            [ 13, 255,   0],
            [255,   0, 207]]
 
-class CircleDrawPanel(QtGui.QGraphicsPixmapItem):
+class RectangleDrawPanel(QtGui.QGraphicsPixmapItem):
     """
     Establish a pixmap item on which labelling (painting) will be performed
     """
     def __init__(self, pixmap=None, parent=None, scene=None):
-        super(CircleDrawPanel, self).__init__()
+        super(RectangleDrawPanel, self).__init__()
 
         # Initialise variables
         # Class variables
@@ -41,15 +41,17 @@ class CircleDrawPanel(QtGui.QGraphicsPixmapItem):
         self.defaultColorPixmap = None
 
         # Annotation parameters
-        self.radius = float(10)
+        self.dx, self.dy = float(20), float(20)
         self.opacity = 60 # Opacity of annotation
         self.highlight_opacity = 100
-        self.label = 1 # Label of circle
+        self.label = 1 # Label of annotation
 
         # Annotation results
-        self.centroids = np.zeros((1000, 4), dtype=float) # x,y,radius
-        self.centroid_counter = 0
+        self.annotations = np.zeros((1000, 5), dtype=float) # x,y,xwidth,yheight,label
+        self.object_counter = 0
         self.changeMade = None
+        self.changeHeight = False
+        self.changeWidth = False
 
         # Annotation drawing
         self.pen = QtGui.QPen(QtCore.Qt.SolidLine)
@@ -57,7 +59,7 @@ class CircleDrawPanel(QtGui.QGraphicsPixmapItem):
         self.pen.setWidth(1)
         self.num_labels = 9
         self.setBrushes()
-        self.highlight_centroid = -1 # Index of highlighted annotation
+        self.highlight_annotation = -1 # Index of highlighted annotation
 
         # Set up options
         self.setFlag(QtGui.QGraphicsItem.ItemIsMovable, True)
@@ -93,25 +95,28 @@ class CircleDrawPanel(QtGui.QGraphicsPixmapItem):
         QPainter.drawPixmap(0, 0, self.pixmap())
         QPainter.setPen(self.pen)
 
-        # Draw a circle at the current position of the mouse
+        # Draw a Rectangle at the current position of the mouse
         if self.x >= 0 and self.y >= 0:
             QPainter.setBrush(self.testbursh)
-            QPainter.drawEllipse(self.x-self.radius, self.y-self.radius, 2*self.radius, 2*self.radius)
+            # QPainter.drawEllipse(self.x-self.radius, self.y-self.radius, 2*self.radius, 2*self.radius)
+            QPainter.drawRect(self.x, self.y, self.dx, self.dy)
 
-        # Draw the annotated circles
-        if self.centroid_counter > 0:
-            for cc in range(self.centroid_counter):
-                i, j, r = self.centroids[cc,:3]*self.current_scale
-                l = self.centroids[cc,3]
+        # Draw the annotated rectangles
+        if self.object_counter > 0:
+            for cc in range(self.object_counter):
+                x, y, dx, dy = self.annotations[cc, :4] * self.current_scale
+                l = self.annotations[cc, 4]
                 QPainter.setBrush(self.savebrushes[int(l)])
-                QPainter.drawEllipse(i-r, j-r, 2*r, 2*r)
+                # QPainter.drawEllipse(i-r, j-r, 2*r, 2*r)
+                QPainter.drawRect(x, y, dx, dy)
 
-        # Draw the highlighted circles
-        if self.highlight_centroid >= 0:
-            i, j, r, l = self.centroids[self.highlight_centroid,:4]*self.current_scale
-            l = self.highlight_centroid[cc,3]
+        # Draw the highlighted rectangles
+        if self.highlight_annotation >= 0:
+            x, y, r, l = self.annotations[self.highlight_annotation, :4] * self.current_scale
+            l = self.highlight_annotation[cc,4]
             QPainter.setBrush(self.highlightbrushes[int(l)])
-            QPainter.drawEllipse(i-r, j-r, 2*r, 2*r)
+            # QPainter.drawEllipse(i-r, j-r, 2*r, 2*r)
+            QPainter.drawRect(x, y, dx, dy)
 
     # Set events for mouse hovers - As the mouse enters the image, change to cross cursor,
     # and as it leaves the image, change to arrow cursor
@@ -141,8 +146,10 @@ class CircleDrawPanel(QtGui.QGraphicsPixmapItem):
         """
         if self.MovingMode is False:
             self.setFlag(QtGui.QGraphicsItem.ItemIsMovable, False)
-            self.centroids[self.centroid_counter, :] = self.x/self.current_scale, self.y/self.current_scale, self.radius/self.current_scale, self.label
-            self.centroid_counter += 1
+            self.annotations[self.object_counter, :] = self.x / self.current_scale, self.y / self.current_scale, \
+                                                       self.dx / self.current_scale, self.dy / self.current_scale, \
+                                                       self.label
+            self.object_counter += 1
             self.changeMade = True
 
             # Add centroids to the parent tree widget
@@ -166,18 +173,18 @@ class CircleDrawPanel(QtGui.QGraphicsPixmapItem):
         Given a set of data, a nx4 dim numpy array, set the annotations
         Annotations order: centre-x, centre-y, raidus, label
         """
-        self.centroids = np.zeros((1000, 4), dtype=float) # x,y,radius
-        self.centroid_counter = data.shape[0]
-        self.centroids[:self.centroid_counter,:] = data
+        self.annotations = np.zeros((1000, 4), dtype=float) # x,y,radius
+        self.object_counter = data.shape[0]
+        self.annotations[:self.object_counter, :] = data
 
     def resetAnnotations(self):
         """
         Reset all annotations for this pixmap
         """
         self.x, self.y = -1, -1
-        self.centroids = np.zeros((1000, 4), dtype=float) # x,y,radius
-        self.centroid_counter = 0
-        self.highlight_centroid = -1
+        self.annotations = np.zeros((1000, 4), dtype=float) # x,y,radius
+        self.object_counter = 0
+        self.highlight_annotation = -1
         # Note: we keep the scale and radius variables as they stay constant as moving through images
 
 class MainWindow(QtGui.QMainWindow):
@@ -222,6 +229,9 @@ class MainWindow(QtGui.QMainWindow):
         # Set graphics screen properties
         self.setscreenproperties()
 
+        # Get initial graphics view size
+        # self.graphicsView_size = self.ui.graphicsView.size()
+
         # self.ui.graphicsView.viewport().installEventFilter(self)
 
         # For debuging
@@ -229,7 +239,6 @@ class MainWindow(QtGui.QMainWindow):
 
     def connectSignals(self):
         """ Connect all the components on the GUI to respective functions """
-
         # Folder/image navigation
         self.connect(self.ui.browse_btn, QtCore.SIGNAL("clicked()"), self.openImageDirectory)
         self.connect(self.ui.label_folder_btn, QtCore.SIGNAL("triggered()"), self.setLabelFolder)
@@ -280,12 +289,15 @@ class MainWindow(QtGui.QMainWindow):
         - Ctrl + : Image zoom
         - Alt + : Annotation radius
         """
-
         # See which modifier is pressed
         modifiers = QtGui.QApplication.keyboardModifiers()
         if modifiers == QtCore.Qt.AltModifier:
             # Change cursor radius
-            self.imagePanel.radius += np.sign(QWheelEvent.delta())
+            # self.imagePanel.radius += np.sign(QWheelEvent.delta())
+            self.imagePanel.dx += np.sign(QWheelEvent.delta())
+            self.imagePanel.dy += np.sign(QWheelEvent.delta())
+            self.imagePanel.dy = np.max((1, self.imagePanel.dy))
+            self.imagePanel.dx = np.max((1, self.imagePanel.dx))
             self.imagePanel.update()
         elif modifiers == QtCore.Qt.ControlModifier:
             # Zoom in and out of the image
@@ -293,6 +305,15 @@ class MainWindow(QtGui.QMainWindow):
                 self.zoomIn()
             if np.sign(QWheelEvent.delta()) < 0:
                 self.zoomOut()
+
+        # Change different dimensions of the rectangle
+        if self.imagePanel.changeHeight:
+            self.imagePanel.dy += np.sign(QWheelEvent.delta())
+            self.imagePanel.dy = np.max((1, self.imagePanel.dy))
+        elif self.imagePanel.changeWidth:
+            self.imagePanel.dx += np.sign(QWheelEvent.delta())
+            self.imagePanel.dx = np.max((1, self.imagePanel.dx))
+            self.imagePanel.update()
 
     def mainKeyPressEvent(self, event):
         # Moving the image
@@ -304,9 +325,20 @@ class MainWindow(QtGui.QMainWindow):
 
         # Change annotation size
         if event.key() == QtCore.Qt.Key_BracketRight:
-            self.imagePanel.radius += 1
+            # self.imagePanel.radius += 1
+            self.imagePanel.dx += 1
+            self.imagePanel.dy += 1
         if event.key() == QtCore.Qt.Key_BracketLeft:
-            self.imagePanel.radius -= 1
+            # self.imagePanel.radius -= 1
+            self.imagePanel.dx -= 1
+            self.imagePanel.dy -= 1
+
+        # Change annotation size of each dimension with key modifiers
+        if event.key() == QtCore.Qt.Key_Q:
+            self.imagePanel.changeWidth = True
+        if event.key() == QtCore.Qt.Key_A:
+            self.imagePanel.changeHeight = True
+
 
         # Zoom in and out of the image
         if event.key() == QtCore.Qt.Key_Equal or event.key() == QtCore.Qt.Key_Plus:
@@ -317,9 +349,11 @@ class MainWindow(QtGui.QMainWindow):
         # Annotate current position (if for some reason clicking is too hard)
         if event.key() == QtCore.Qt.Key_Space:
             if self.imagePanel.x >= 0:
-                x, y, r, s = self.imagePanel.x, self.imagePanel.y, self.imagePanel.radius, self.imagePanel.current_scale
-                self.imagePanel.centroids[self.imagePanel.centroid_counter, ...] = x/s, y/s, r/s, self.imagePanel.label
-                self.imagePanel.centroid_counter += 1
+                x, y, dx, dy, s = self.imagePanel.x, self.imagePanel.y, self.imagePanel.dx, self.imagePanel.dy, \
+                                  self.imagePanel.current_scale
+                self.imagePanel.annotations[self.imagePanel.object_counter, ...] = x/s, y/s, dx/s, dy/s, \
+                                                                                   self.imagePanel.label
+                self.imagePanel.object_counter += 1
                 self.imagePanel.changeMade = True
                 self.updateTree()
 
@@ -341,6 +375,12 @@ class MainWindow(QtGui.QMainWindow):
             self.imagePanel.MovingMode = False
             self.imagePanel.setCursor(QtGui.QCursor(QtCore.Qt.CrossCursor))
 
+        # Change annotation size of each dimension with key modifiers
+        if event.key() == QtCore.Qt.Key_Q:
+            self.imagePanel.changeWidth = False
+        if event.key() == QtCore.Qt.Key_A:
+            self.imagePanel.changeHeight = False
+
     def zoomIn(self):
         """ Rescale pixmap to simulate a zooming in motion """
         # increment scale multiplier
@@ -360,7 +400,8 @@ class MainWindow(QtGui.QMainWindow):
 
         # Save scale properties into graphics item
         self.imagePanel.current_scale = self.multiplier
-        self.imagePanel.radius *= ratio
+        self.imagePanel.dx *= ratio
+        self.imagePanel.dy *= ratio
         self.imagePanel.x = -1
 
     def zoomOut(self):
@@ -382,7 +423,8 @@ class MainWindow(QtGui.QMainWindow):
 
         # Save scale properties into graphics item
         self.imagePanel.current_scale = self.multiplier
-        self.imagePanel.radius *= ratio
+        self.imagePanel.dx *= ratio
+        self.imagePanel.dy *= ratio
         self.imagePanel.x = -1
 
     def treeMousePress(self, event):
@@ -401,7 +443,7 @@ class MainWindow(QtGui.QMainWindow):
             selected_index = -1
 
         # Feel selected index to graphics item to highlight item
-        self.imagePanel.highlight_centroid = selected_index
+        self.imagePanel.highlight_annotation = selected_index
         self.imagePanel.update()
 
     def treeKeyPress(self, event):
@@ -411,10 +453,10 @@ class MainWindow(QtGui.QMainWindow):
         if event.key() == QtCore.Qt.Key_Delete:
             selected_item = self.ui.treeWidget.currentItem()
             selected_index = int(selected_item.text(0))-1
-            self.imagePanel.centroid_counter -= 1
-            self.imagePanel.centroids = np.delete(self.imagePanel.centroids, selected_index, axis=0)
+            self.imagePanel.object_counter -= 1
+            self.imagePanel.annotations = np.delete(self.imagePanel.annotations, selected_index, axis=0)
             self.updateTree()
-            self.imagePanel.highlight_centroid = -1
+            self.imagePanel.highlight_annotation = -1
             self.imagePanel.update()
 
         # Navigate through items - highlighting the current selection on the image
@@ -423,7 +465,7 @@ class MainWindow(QtGui.QMainWindow):
             self.ui.treeWidget.setCurrentItem(self.ui.treeWidget.itemBelow(item))
             selected_item = self.ui.treeWidget.currentItem()
             selected_index = int(selected_item.text(0))-1
-            self.imagePanel.highlight_centroid = selected_index
+            self.imagePanel.highlight_annotation = selected_index
             self.imagePanel.update()
 
         if event.key() == QtCore.Qt.Key_Up:
@@ -431,8 +473,8 @@ class MainWindow(QtGui.QMainWindow):
             self.ui.treeWidget.setCurrentItem(self.ui.treeWidget.itemAbove(item))
             selected_item = self.ui.treeWidget.currentItem()
             selected_index = int(selected_item.text(0))-1
-            self.imagePanel.highlight_centroid = selected_index
-            self.imagePanel.highlight_centroid = selected_index
+            self.imagePanel.highlight_annotation = selected_index
+            self.imagePanel.highlight_annotation = selected_index
             self.imagePanel.update()
 
     def updateTree(self):
@@ -440,13 +482,13 @@ class MainWindow(QtGui.QMainWindow):
         # Clear previous values
         self.ui.treeWidget.clear()
 
-        # Go through the centroids and add the data points
-        for i in range(self.imagePanel.centroid_counter):
+        # Go through the Rectangles and add the data points
+        for i in range(self.imagePanel.object_counter):
             column = QtGui.QTreeWidgetItem(self.ui.treeWidget)
             column.setText(0, str(i+1))
-            column.setText(1, ','.join(['{0:.0f}'.format(x) for x in self.imagePanel.centroids[i, :2]]))
-            column.setText(2, '{:.1f}'.format(self.imagePanel.centroids[i, 2]))
-            column.setText(3, str(self.imagePanel.centroids[i, 3]))
+            column.setText(1, ','.join(['{0:.0f}'.format(x) for x in self.imagePanel.annotations[i, :2]]))
+            column.setText(2, ','.join(['{0:.0f}'.format(x) for x in self.imagePanel.annotations[i, 2:4]]))
+            column.setText(3, str(self.imagePanel.annotations[i, 4]))
 
     def change_opacity(self, value):
         """ From the slider, change the opacity of the current annotations """
@@ -485,16 +527,19 @@ class MainWindow(QtGui.QMainWindow):
 
         # Set scene and add to graphics view
         self.scene = QtGui.QGraphicsScene()
-        self.imagePanel = CircleDrawPanel(scene=self.scene, parent=self)
+        self.imagePanel = RectangleDrawPanel(scene=self.scene, parent=self)
         self.imagePanel.setPixmap(self.pixmap)
         self.imagePanel.defaultColorPixmap = self.pixmap
         self.change_brightness_contrast()
         self.scene.addItem(self.imagePanel)
+        # self.ui.graphicsView.resize(self.graphicsView_size)
         self.ui.graphicsView.setScene(self.scene)
+        # print self.ui.graphicsView.size().width(), self.ui.graphicsView.size().height()
+        # print self.scene.itemsBoundingRect()
         self.ui.graphicsView.setSceneRect(0, 0,
                                           self.ui.graphicsView.size().width()-10,
                                           self.ui.graphicsView.size().height()-10)
-
+        # self.ui.graphicsView.setSceneRect(self.scene.itemsBoundingRect())
 
     def loadImage(self,image_path):
         """ Given an image path, load image onto graphics item """
@@ -591,14 +636,14 @@ class MainWindow(QtGui.QMainWindow):
     def saveAnnotations(self):
         """
         Save annotations as .csv files
-        Entries contains item cx, cy, radius, label
-        By default, save to same level as images, into folder named labels-circles
+        Entries contains item cx, cy, width, height, label
+        By default, save to same level as images, into folder named labels-rectangles
         """
 
         # Get the current image file name
         filename = os.path.splitext(str(self.ui.imageComboBox.currentText()))[0]
         if self.labelFolder is None:
-            self.labelFolder = os.path.join(self.imagesFolder, '../labels-circles/')
+            self.labelFolder = os.path.join(self.imagesFolder, '../labels-rectangles/')
 
         # Create label folder
         if not os.path.exists(self.labelFolder):
@@ -619,15 +664,15 @@ class MainWindow(QtGui.QMainWindow):
                 return 0
 
         # Annotation header and data
-        header = ['item','c-x','c-y','radius','label']
-        data = self.imagePanel.centroids[:self.imagePanel.centroid_counter, :]
+        header = ['item','x','y','dx','dy','label']
+        data = self.imagePanel.annotations[:self.imagePanel.object_counter, :]
 
         # If there is data, add item numbers for the first column
         if data.size > 0:
             data = np.hstack((np.arange(data.shape[0])[:,None], data))
 
         # Saving format
-        fmt = '%.0f,%3.2f,%3.2f,%3.2f,%.0f'
+        fmt = '%.0f,%3.2f,%3.2f,%3.2f,%3.2f,%.0f'
 
         # Diplay saving status and save to file (headeer first)
         self.ui.statusBar.showMessage('Saved to {}'.format(filename))
@@ -668,22 +713,24 @@ class MainWindow(QtGui.QMainWindow):
     def aboutWindow(self):
         """ Display information about the software """
 
-        message = 'About the Circle Annotator:\t\t\n\n'
-        message += 'Circle annotation tool.\n'
-        message += 'Pick image directory (containing .jpg or .png files) and start labelling! Labels saved as .csv in the same parent folder as the images, under folder labels-circles. '
-        message += 'The Labels are stored in format item, c-x, c-y, radius, label #.\nIf Auto save is selected, the annotations will be saved upon clicking next/previous image (or by ctrl + s). '
+        message = 'About the Rectangle Annotator:\t\t\n\n'
+        message += 'Rectangle annotation tool.\n'
+        message += 'Pick image directory (containing .jpg or .png files) and start labelling! Labels saved as .csv in the same parent folder as the images, under folder labels-rectangles. '
+        message += 'The Labels are stored in format item, x, y, width, height, label #.\nIf Auto save is selected, ' \
+                   'the annotations will be saved upon clicking next/previous image (or by ctrl + s). '
         message += 'If Auto Load is selected, when an image loads, so will its annotations in the labels folder if they exist.\n'
         message += 'To delete an annotation, select is from the annotation list and press delete.\n\n'
         message += 'Controls:\n\n'
         message += 'Zoom in/out: \t-/+ or Ctrl + Wheel Button\n'
         message += 'Move Image: \tShift + Wheel Button\n'
-        message += 'Circle Radius: \t\Alt + Wheel Button:\n'
+        message += 'Rectangle Size: \t\Alt + Wheel Button:\n'
+        message += 'Rectangle width, height: \tQ,A + Wheel Button:\n'
         message += 'Label ID: \t\t[1-9]\n'
         message += 'Annotate: \t\tSpace or Left Click\n'
         message += 'Previous/Next Image: \t</>\n'
         message += 'Save Annotation: \tCtrl + s\n'
         message += 'Exit application: \tESC\n'
-        QtGui.QMessageBox.information(self, 'About Pychet Circle Annotator', message)
+        QtGui.QMessageBox.information(self, 'About Pychet Rectangle Annotator', message)
 
     def loadAnnotations(self):
         """
@@ -693,7 +740,7 @@ class MainWindow(QtGui.QMainWindow):
         # Get current file name
         filename = os.path.splitext(str(self.ui.imageComboBox.currentText()))[0]
         if self.labelFolder is None:
-            self.labelFolder = os.path.join(self.imagesFolder, '../labels-circles/')
+            self.labelFolder = os.path.join(self.imagesFolder, '../labels-rectangles/')
 
         # Get load file name
         loadfile = os.path.join(self.labelFolder, filename+'.csv')
@@ -708,7 +755,6 @@ class MainWindow(QtGui.QMainWindow):
 
         # If labels are loaded then toggle changeMade to False
         self.imagePanel.changeMade = False
-
 
     def quickview(self):
         """
@@ -725,16 +771,21 @@ class MainWindow(QtGui.QMainWindow):
         self.pixmap = QtGui.QPixmap(image_path)
         self.original_size = self.pixmap.width(), self.pixmap.height()
         self.multiplier = float(1)
+        print self.original_size
 
         # Set graphics scene and add image
         self.scene = QtGui.QGraphicsScene()
-        self.imagePanel = CircleDrawPanel(scene=self.scene, parent=self)
+        self.imagePanel = RectangleDrawPanel(scene=self.scene, parent=self)
         self.imagePanel.setPixmap(self.pixmap)
         self.imagePanel.defaultColorPixmap = self.pixmap
         self.change_brightness_contrast()
         self.scene.addItem(self.imagePanel)
+        # print self.ui.graphicsView.size().width(), self.ui.graphicsView.size().height()
         self.ui.graphicsView.setScene(self.scene)
+        # print self.ui.graphicsView.size().width(), self.ui.graphicsView.size().height()
+        # print self.scene.itemsBoundingRect()
         self.ui.graphicsView.setSceneRect(self.scene.itemsBoundingRect())
+
 
 class FitImageGraphicsView(QtGui.QGraphicsView):
     """

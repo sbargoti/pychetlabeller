@@ -1,6 +1,6 @@
 # -*- coding: utf-8 -*-
 
-# Form implementation generated from reading ui file 'circle_labeller.ui'
+# Form implementation generated from reading ui file 'rectangle_labeller.ui'
 #
 # Created: Mon Nov  2 13:15:18 2015
 #      by: PyQt4 UI code generator 4.10.4
@@ -211,7 +211,7 @@ class Ui_MainWindow(object):
         QtCore.QMetaObject.connectSlotsByName(MainWindow)
 
     def retranslateUi(self, MainWindow):
-        MainWindow.setWindowTitle(_translate("MainWindow", "Pychet Cricle Annotator", None))
+        MainWindow.setWindowTitle(_translate("MainWindow", "Pychet Rectangle Annotator", None))
         self.dockWidget.setWindowTitle(_translate("MainWindow", "Navigation", None))
         self.autosave_chk.setText(_translate("MainWindow", "AutoSave", None))
         self.label_folder_btn.setText(_translate("MainWindow", "Label Folder", None))
@@ -231,7 +231,7 @@ class Ui_MainWindow(object):
         self.contrast_box.setTitle(_translate("MainWindow", "Contrast: 0", None))
         self.treeWidget.headerItem().setText(0, _translate("MainWindow", "Item", None))
         self.treeWidget.headerItem().setText(1, _translate("MainWindow", "Centroid", None))
-        self.treeWidget.headerItem().setText(2, _translate("MainWindow", "Radius", None))
+        self.treeWidget.headerItem().setText(2, _translate("MainWindow", "Size", None))
         self.treeWidget.headerItem().setText(3, _translate("MainWindow", "Label", None))
         self.menuFIle.setTitle(_translate("MainWindow", "FIle", None))
         self.menuHere.setTitle(_translate("MainWindow", "Help", None))
