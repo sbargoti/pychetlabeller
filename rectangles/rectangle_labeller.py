@@ -146,14 +146,15 @@ class RectangleDrawPanel(QtGui.QGraphicsPixmapItem):
         """
         if self.MovingMode is False:
             self.setFlag(QtGui.QGraphicsItem.ItemIsMovable, False)
-            self.annotations[self.object_counter, :] = self.x / self.current_scale, self.y / self.current_scale, \
-                                                       self.dx / self.current_scale, self.dy / self.current_scale, \
-                                                       self.label
-            self.object_counter += 1
-            self.changeMade = True
+            if QGraphicsSceneMouseEvent.button() == 1:
+                self.annotations[self.object_counter, :] = self.x / self.current_scale, self.y / self.current_scale, \
+                                                           self.dx / self.current_scale, self.dy / self.current_scale, \
+                                                           self.label
+                self.object_counter += 1
+                self.changeMade = True
 
-            # Add centroids to the parent tree widget
-            self.parent.updateTree()
+                # Add centroids to the parent tree widget
+                self.parent.updateTree()
         else:
             self.setFlag(QtGui.QGraphicsItem.ItemIsMovable, True)
             self.setCursor(QtGui.QCursor(QtCore.Qt.ClosedHandCursor))
@@ -357,7 +358,6 @@ class MainWindow(QtGui.QMainWindow):
                 self.updateTree()
 
         # Change label options
-        print QtCore.QString(QtCore.QChar(event.key()))
         for num in range(9)[1:]:
             if QtCore.QString(QtCore.QChar(event.key())) == str(num):
                 self.imagePanel.label = num
@@ -602,7 +602,7 @@ class MainWindow(QtGui.QMainWindow):
     def changeImage(self, text):
         """ Call load image and set new image as title, combo box entry and image # """
         self.loadImage("%s/%s" % (self.imagesFolder, text))
-        self.setWindowTitle("%s - Pychet Annotator" % (self.ui.imageComboBox.currentText()))
+        self.setWindowTitle("%s - Pychet Rectangle Annotator" % (self.ui.imageComboBox.currentText()))
         self.image_index = self.ui.imageComboBox.currentIndex()
         self.ui.image_index_label.setText('{:.0f}/{:.0f}'.format(self.image_index+1, self.ui.imageComboBox.count()))
 

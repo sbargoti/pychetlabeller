@@ -141,15 +141,16 @@ class CircleDrawPanel(QtGui.QGraphicsPixmapItem):
         """
         if self.MovingMode is False:
             self.setFlag(QtGui.QGraphicsItem.ItemIsMovable, False)
-            self.centroids[self.centroid_counter, :] = self.x/self.current_scale, self.y/self.current_scale, self.radius/self.current_scale, self.label
-            self.centroid_counter += 1
-            self.changeMade = True
+            if QGraphicsSceneMouseEvent.button() == 1:
+                self.centroids[self.centroid_counter, :] = self.x/self.current_scale, self.y/self.current_scale, self.radius/self.current_scale, self.label
+                self.centroid_counter += 1
+                self.changeMade = True
 
-            # Add centroids to the parent tree widget
-            self.parent.updateTree()
+                # Add centroids to the parent tree widget
+                self.parent.updateTree()
         else:
             self.setFlag(QtGui.QGraphicsItem.ItemIsMovable, True)
-            print self.scenePos()
+            # print self.scenePos()
             self.setCursor(QtGui.QCursor(QtCore.Qt.ClosedHandCursor))
 
     def mouseReleaseEvent(self, QGraphicsSceneMouseEvent):
@@ -557,7 +558,7 @@ class MainWindow(QtGui.QMainWindow):
     def changeImage(self, text):
         """ Call load image and set new image as title, combo box entry and image # """
         self.loadImage("%s/%s" % (self.imagesFolder, text))
-        self.setWindowTitle("%s - Pychet Annotator" % (self.ui.imageComboBox.currentText()))
+        self.setWindowTitle("%s - Pychet Circle Annotator" % (self.ui.imageComboBox.currentText()))
         self.image_index = self.ui.imageComboBox.currentIndex()
         self.ui.image_index_label.setText('{:.0f}/{:.0f}'.format(self.image_index+1, self.ui.imageComboBox.count()))
 
