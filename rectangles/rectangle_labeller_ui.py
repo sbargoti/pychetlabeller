@@ -230,7 +230,7 @@ class Ui_MainWindow(object):
         self.brightness_box.setTitle(_translate("MainWindow", "Brightness: 0", None))
         self.contrast_box.setTitle(_translate("MainWindow", "Contrast: 0", None))
         self.treeWidget.headerItem().setText(0, _translate("MainWindow", "Item", None))
-        self.treeWidget.headerItem().setText(1, _translate("MainWindow", "Centroid", None))
+        self.treeWidget.headerItem().setText(1, _translate("MainWindow", "Position", None))
         self.treeWidget.headerItem().setText(2, _translate("MainWindow", "Size", None))
         self.treeWidget.headerItem().setText(3, _translate("MainWindow", "Label", None))
         self.menuFIle.setTitle(_translate("MainWindow", "FIle", None))
