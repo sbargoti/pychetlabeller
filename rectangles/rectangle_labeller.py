@@ -173,7 +173,7 @@ class RectangleDrawPanel(QtGui.QGraphicsPixmapItem):
         Given a set of data, a nx4 dim numpy array, set the annotations
         Annotations order: centre-x, centre-y, raidus, label
         """
-        self.annotations = np.zeros((1000, 4), dtype=float) # x,y,radius
+        self.annotations = np.zeros((1000, self.annotations.shape[1]), dtype=float) # x,y,width,height
         self.object_counter = data.shape[0]
         self.annotations[:self.object_counter, :] = data
 
@@ -182,7 +182,7 @@ class RectangleDrawPanel(QtGui.QGraphicsPixmapItem):
         Reset all annotations for this pixmap
         """
         self.x, self.y = -1, -1
-        self.annotations = np.zeros((1000, 4), dtype=float) # x,y,radius
+        self.annotations = np.zeros((1000, self.annotations.shape[1]), dtype=float) # x,y,width, height
         self.object_counter = 0
         self.highlight_annotation = -1
         # Note: we keep the scale and radius variables as they stay constant as moving through images
@@ -612,7 +612,7 @@ class MainWindow(QtGui.QMainWindow):
         if imagesFolder is None:
             # Specify default folder for quick access
             self.default_directory = "/media/suchet/d-drive/data/processed/2013-03-20-melbourne-apple-farm/shrimp/Run4-5/ladybug/appleBinaryCombined"
-            self.default_directory = "/media/suchet/d-drive/Dropbox/ACFR PhD/Experimental-Results/mango-labelling-2016/circle-labels"
+            self.default_directory = "/media/suchet/d-drive/Dropbox/ACFR PhD/Experimental-Results/mango-labelling-2016/"
 
             # Get output from browser
             self.imagesFolder = str(QtGui.QFileDialog.getExistingDirectory(self, "Open directory", self.default_directory))
