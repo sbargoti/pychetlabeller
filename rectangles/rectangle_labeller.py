@@ -156,7 +156,6 @@ class RectangleDrawPanel(QtGui.QGraphicsPixmapItem):
             self.parent.updateTree()
         else:
             self.setFlag(QtGui.QGraphicsItem.ItemIsMovable, True)
-            print self.scenePos()
             self.setCursor(QtGui.QCursor(QtCore.Qt.ClosedHandCursor))
 
     def mouseReleaseEvent(self, QGraphicsSceneMouseEvent):
@@ -771,7 +770,6 @@ class MainWindow(QtGui.QMainWindow):
         self.pixmap = QtGui.QPixmap(image_path)
         self.original_size = self.pixmap.width(), self.pixmap.height()
         self.multiplier = float(1)
-        print self.original_size
 
         # Set graphics scene and add image
         self.scene = QtGui.QGraphicsScene()
