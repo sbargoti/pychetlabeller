@@ -590,7 +590,10 @@ class MainWindow(QtGui.QMainWindow):
 
     def setLabelFolder(self):
         """ Pick folder to save annotations into """
-        self.labelFolder = str(QtGui.QFileDialog.getExistingDirectory(self, "Open directory", self.default_directory))
+        opendirectory = self.default_directory
+        if self.imageFolder is not None:
+            opendirectory = self.imageFolder
+        self.labelFolder = str(QtGui.QFileDialog.getExistingDirectory(self, "Open directory", opendirectory))
 
     def saveAnnotations(self):
         """
