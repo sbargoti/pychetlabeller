@@ -241,7 +241,7 @@ class MainWindow(QtGui.QMainWindow):
         """ Connect all the components on the GUI to respective functions """
         # Folder/image navigation
         self.connect(self.ui.browse_btn, QtCore.SIGNAL("clicked()"), self.openImageDirectory)
-        self.connect(self.ui.label_folder_btn, QtCore.SIGNAL("triggered()"), self.setLabelFolder)
+        self.connect(self.ui.label_folder_btn, QtCore.SIGNAL("clicked()"), self.setLabelFolder)
         self.connect(self.ui.prev_btn, QtCore.SIGNAL("clicked()"), self.previousImage)
         self.connect(self.ui.next_btn, QtCore.SIGNAL("clicked()"), self.nextImage)
         self.connect(self.ui.imageComboBox, QtCore.SIGNAL("currentIndexChanged(QString)"), self.changeImage)
@@ -723,8 +723,8 @@ class MainWindow(QtGui.QMainWindow):
         message += 'Controls:\n\n'
         message += 'Zoom in/out: \t-/+ or Ctrl + Wheel Button\n'
         message += 'Move Image: \tShift + Wheel Button\n'
-        message += 'Rectangle Size: \t\Alt + Wheel Button:\n'
-        message += 'Rectangle width, height: \tQ,A + Wheel Button:\n'
+        message += 'Rectangle Size: \t\Alt + Wheel Button\n'
+        message += 'Rectangle width, height: Q,A + Wheel Button:\n'
         message += 'Label ID: \t\t[1-9]\n'
         message += 'Annotate: \t\tSpace or Left Click\n'
         message += 'Previous/Next Image: \t</>\n'

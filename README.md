@@ -82,6 +82,8 @@ Extentions to labeller - coming soon:
   be to use .xml format.
 * The rectangle annotation toolbox has not been thoroughly tested - could have
   bugs.
+* Change brightness and contrast sliders to levels slider. Allows for much better control of the image contrast
+* Add ability to click and delete labels - currently need to find the label in the table and then press delete
 
 ## Bugs
 Please contact author to report bugs @ bargoti.suchet@gmail.com

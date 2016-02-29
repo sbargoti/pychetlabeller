@@ -233,7 +233,7 @@ class MainWindow(QtGui.QMainWindow):
 
         # Folder/image navigation
         self.connect(self.ui.browse_btn, QtCore.SIGNAL("clicked()"), self.openImageDirectory)
-        self.connect(self.ui.label_folder_btn, QtCore.SIGNAL("triggered()"), self.setLabelFolder)
+        self.connect(self.ui.label_folder_btn, QtCore.SIGNAL("clicked()"), self.setLabelFolder)
         self.connect(self.ui.prev_btn, QtCore.SIGNAL("clicked()"), self.previousImage)
         self.connect(self.ui.next_btn, QtCore.SIGNAL("clicked()"), self.nextImage)
         self.connect(self.ui.imageComboBox, QtCore.SIGNAL("currentIndexChanged(QString)"), self.changeImage)
