@@ -155,6 +155,19 @@ class RectangleDrawPanel(QtGui.QGraphicsPixmapItem):
 
                 # Add centroids to the parent tree widget
                 self.parent.updateTree()
+
+            elif QGraphicsSceneMouseEvent.button() == 2: # make selection if right clicked pressed
+                if self.object_counter >= 1:
+                    select_x, select_y = self.x/self.current_scale, self.y/self.current_scale
+                    dist_2 = np.sum((self.annotations[:,:2]-np.asarray((select_x, select_y)))**2, axis=1)
+                    min_idx = np.argmin(dist_2)
+
+                    if dist_2[min_idx] < (np.min(self.parent.original_size)*0.1)**2:
+                        self.parent.ui.treeWidget.setCurrentItem(self.parent.ui.treeWidget.topLevelItem(min_idx))
+                        self.highlight_annotation = min_idx
+                        self.update()
+                        self.parent.ui.treeWidget.setFocus()
+
         else:
             self.setFlag(QtGui.QGraphicsItem.ItemIsMovable, True)
             self.setCursor(QtGui.QCursor(QtCore.Qt.ClosedHandCursor))
@@ -452,12 +465,13 @@ class MainWindow(QtGui.QMainWindow):
         # Delete selected item
         if event.key() == QtCore.Qt.Key_Delete:
             selected_item = self.ui.treeWidget.currentItem()
-            selected_index = int(selected_item.text(0))-1
-            self.imagePanel.object_counter -= 1
-            self.imagePanel.annotations = np.delete(self.imagePanel.annotations, selected_index, axis=0)
-            self.updateTree()
-            self.imagePanel.highlight_annotation = -1
-            self.imagePanel.update()
+            if selected_item is not None:
+                selected_index = int(selected_item.text(0))-1
+                self.imagePanel.object_counter -= 1
+                self.imagePanel.annotations = np.delete(self.imagePanel.annotations, selected_index, axis=0)
+                self.updateTree()
+                self.imagePanel.highlight_annotation = -1
+                self.imagePanel.update()
 
         # Navigate through items - highlighting the current selection on the image
         if event.key() == QtCore.Qt.Key_Down:
@@ -614,8 +628,8 @@ class MainWindow(QtGui.QMainWindow):
             self.default_directory = "/media/suchet/d-drive/data/processed/2013-03-20-melbourne-apple-farm/shrimp/Run4-5/ladybug/appleBinaryCombined"
             self.default_directory = "/media/suchet/d-drive/Dropbox/ACFR PhD/Experimental-Results/mango-labelling-2016/"
             opendirectory = self.default_directory
-            if self.imageFolder is not None:
-                opendirectory = self.imageFolder
+            if self.imagesFolder is not None:
+                opendirectory = self.imagesFolder
 
             # Get output from browser
             self.imagesFolder = str(QtGui.QFileDialog.getExistingDirectory(self, "Open directory", opendirectory))
@@ -635,8 +649,8 @@ class MainWindow(QtGui.QMainWindow):
     def setLabelFolder(self):
         """ Pick folder to save annotations into """
         opendirectory = self.default_directory
-        if self.imageFolder is not None:
-            opendirectory = self.imageFolder
+        if self.imagesFolder is not None:
+            opendirectory = self.imagesFolder
         self.labelFolder = str(QtGui.QFileDialog.getExistingDirectory(self, "Open directory", opendirectory))
 
     def saveAnnotations(self):
@@ -725,7 +739,8 @@ class MainWindow(QtGui.QMainWindow):
         message += 'The Labels are stored in format item, x, y, width, height, label #.\nIf Auto save is selected, ' \
                    'the annotations will be saved upon clicking next/previous image (or by ctrl + s). '
         message += 'If Auto Load is selected, when an image loads, so will its annotations in the labels folder if they exist.\n'
-        message += 'To delete an annotation, select is from the annotation list and press delete.\n\n'
+        message += 'To delete an annotation, select it with a right click of from the annotation list and press ' \
+                   'delete.\n\n'
         message += 'Controls:\n\n'
         message += 'Zoom in/out: \t-/+ or Ctrl + Wheel Button\n'
         message += 'Move Image: \tShift + Wheel Button\n'
