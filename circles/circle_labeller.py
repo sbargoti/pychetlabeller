@@ -569,9 +569,12 @@ class MainWindow(QtGui.QMainWindow):
             # Specify default folder for quick access
             self.default_directory = "/media/suchet/d-drive/data/processed/2013-03-20-melbourne-apple-farm/shrimp/Run4-5/ladybug/appleBinaryCombined"
             self.default_directory = "/media/suchet/d-drive/Dropbox/ACFR PhD/Experimental-Results/mango-labelling-2016/circle-labels"
+            opendirectory = self.default_directory
+            if self.imageFolder is not None:
+                opendirectory = self.imageFolder
 
             # Get output from browser
-            self.imagesFolder = str(QtGui.QFileDialog.getExistingDirectory(self, "Open directory", self.default_directory))
+            self.imagesFolder = str(QtGui.QFileDialog.getExistingDirectory(self, "Open directory", opendirectory))
         else:
             self.imagesFolder = imagesFolder
 
