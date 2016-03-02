@@ -26,6 +26,18 @@ _colors = [[137,   0, 255],
            [ 13, 255,   0],
            [255,   0, 207]]
 
+class SelectDropType(QtGui.QDialog):
+    def __init__(self, parent=None):
+        super(SelectDropType, self).__init__(parent)
+
+        msgBox = QtGui.QMessageBox()
+        msgBox.setText('Which folder is this?')
+        msgBox.addButton(QtGui.QPushButton('Cancel'), QtGui.QMessageBox.RejectRole)
+        msgBox.addButton(QtGui.QPushButton('Labels'), QtGui.QMessageBox.NoRole)
+        msgBox.addButton(QtGui.QPushButton('Images'), QtGui.QMessageBox.YesRole)
+
+        self.selection = msgBox.exec_()
+
 class CircleDrawPanel(QtGui.QGraphicsPixmapItem):
     """
     Establish a pixmap item on which labelling (painting) will be performed
@@ -270,6 +282,42 @@ class MainWindow(QtGui.QMainWindow):
         # Imaging properties
         self.connect(self.ui.brightness_slider, QtCore.SIGNAL('valueChanged(int)'), self.change_brightness)
         self.connect(self.ui.contrast_slider, QtCore.SIGNAL('valueChanged(int)'), self.change_contrast)
+
+        # Drag and drop data
+        self.setAcceptDrops(True)
+
+    def dragEnterEvent(self, QDragEnterEvent):
+        """
+        Dragging in folders
+        """
+        if QDragEnterEvent.mimeData().hasUrls:
+            QDragEnterEvent.accept()
+        else:
+            QDragEnterEvent.ignore()
+
+    def dropEvent(self, QDropEvent):
+        """
+        Drop a folder and ask user to select if image folder or label folder
+        """
+        if QDropEvent.mimeData().hasUrls:
+
+            QDropEvent.setDropAction(QtCore.Qt.CopyAction)
+            QDropEvent.accept()
+
+            promptuser = SelectDropType()
+            promptuser.show()
+
+            if promptuser.selection == 1:
+                urls = QDropEvent.mimeData().urls()
+                assert len(urls) == 1
+                self.labelFolder = str(urls[0].toString()[7:])
+            if promptuser.selection == 2:
+                urls = QDropEvent.mimeData().urls()
+                assert len(urls) == 1
+                imageFolder = str(urls[0].toString()[7:])
+                self.openImageDirectory(imagesFolder=imageFolder)
+        else:
+            QDropEvent.ignore()
 
     def setscreenproperties(self):
         """
