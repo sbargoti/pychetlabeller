@@ -28,16 +28,21 @@ region live while moving the mouse around. And wanted some simple shortcuts to
 changes its size and change the labelling output. Pychet Labeller aims to
 address these features.
 
+## Prerequisites
+  pip install svgwrite
+
 ## Installation
-1. Clone this repository
-2. Add base directory (where pychetlabeller is stored) to python path by adding the line below to your ~/.bashrc
+1. Install prerequisites (svgwrite)
+2. Clone this repository
+3. Add base directory (where pychetlabeller is stored) to python path by adding the line below to your ~/.bashrc
 
     git clone https://github.com/sbargoti/pychetlabeller.git pychetlabeller
     export PYTHONPATH=$PYTHONPATH:$HOME/code/python/development/
 
 ## Usage
 ### Circle labelling toolbox
-    python circles/circle_labeler.py
+    python circles/circle_labeler.py <img dir> <label dir> 
+    or python -m pychetlabeller.circles.circle_labeller <img dir> <label dir>
 
 ### Rectangle labelling toolbox
     python rectangles/rectangle_labeler.py
