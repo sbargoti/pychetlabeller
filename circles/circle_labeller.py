@@ -1,30 +1,178 @@
 #! /usr/bin/python
-
-__author__ = 'suchet'
-__date__ = '28/10/15'
-
 """
 Image annotation tool.
 Annotate using circular shapes
 """
+__author__ = 'suchet'
+__date__ = '28/10/15'
 
 import sys, os, csv
 import numpy as np
 import svgwrite
 from PyQt4 import QtGui, QtCore
 from pychetlabeller.circles.circle_labeller_ui import Ui_MainWindow
+from shapely.geometry import Point, Polygon
 
-_colors = [[137,   0, 255],
-           [255,   0,   0],
-           [179, 179,   0],
-           [  0, 255, 151],
-           [  0, 193, 255],
-           [  0,  27, 255],
-           [137,   0, 255],
-           [255, 165,   0],
-           [255,   0,  41],
-           [ 13, 255,   0],
-           [255,   0, 207]]
+my_colormap = [\
+[137, 0, 255], 
+[255, 0, 0], 
+[179, 179, 0], 
+[0, 255, 151], 
+[0, 193, 255], 
+[0, 27, 255], 
+[137, 0, 255], 
+[255, 165, 0], 
+[255, 0, 41], 
+[13, 255, 0], 
+[255, 0, 207]]
+label_dataset = None
+
+class LabelDataset(object):
+    '''shape-label dataset class'''
+    def __init__(self, image_path, image_size):
+        self.data = []
+        self.image_size = image_size
+        self.image_path = image_path
+        self.label_path = None
+    def add(self, datum):
+        ''' add a LabelShape to the dataset'''
+        assert isinstance(datum, LabelShape)
+        self.data.append(datum)
+    def remove(self, datum):
+        '''remove a LabelShape to the dataset'''
+        assert isinstance(datum, LabelShape)
+        self.data.remove(datum)
+    def save(self, label_basename):
+        '''Save the dataset'''
+        self.saveSVG(label_basename + '.svg')
+        self.saveCSV(label_basename + '.csv')
+    def saveSVG(self, output_filename):
+        """Save the shapes in SVG format"""
+        dwg = svgwrite.Drawing(output_filename
+            , profile='tiny', size=self.image_size)
+        for datum in self.data:
+            dwg.add(datum.svg_shape())
+        dwg.save()
+    def saveCSV(self, output_filename
+        , field_delimiter=',', line_delimiter='\n'):
+        """Save the shapes as CSV"""
+        with open(output_filename, 'w') as f:
+            for datum in self.data:
+                serialized = [str(i) for i in datum.serialize()]
+                f.write(field_delimiter.join(serialized) + line_delimiter)
+    def load(self, label_path):
+        '''try load the default path, or given label_path'''
+        self.label_path = label_path
+        try:
+            label_file = open(self.label_path, 'r')
+        except IOError:
+            return False # Couldn't find file
+        for line in csv.reader(label_file):
+            try:
+                is_circle = True #TODO: complete stub
+                if is_circle:
+                    self.add(LabelCircle(int(line[4])
+                        , float(line[1]), float(line[2]), float(line[3])))
+            except ValueError:
+                # Things that don't convert will be skipped
+                print "WARNING: Skipped a line (ValueError)"
+        label_file.close()
+    def find(self, labelshape_id):
+        '''find a LabelShape given by ID'''
+        results = [datum for datum in self.data if datum.id == labelshape_id]
+        if len(results):
+            return results[0]
+        return None
+    def data_at(self, position):
+        '''return all the data that lie at a point'''
+        point = Point(position[0], position[1])
+        results = [datum for datum in self.data if point.within(datum.shape)]
+        return results
+
+class Tool(object):
+    def __init__(self):
+        label = None
+        pass
+    def click(self, x, y, button):
+        pass
+    def wheel(self, delta):
+        pass
+    def set_label(self, label):
+        self.label = label
+
+class Tool_Circle(Tool):
+    defaults = {
+        'radius': 10,
+        'radius_scroll_delta': 1
+    }
+    def __init__(self):
+        self.radius = Tool_Circle.defaults['radius']
+    def click(self, x, y, button):
+        if button == 'l':
+            return LabelCircle(self.label, x, y, radius)
+        return None
+    def wheel(self, delta):
+        self.radius += delta * defaults['radius_scroll_delta']
+
+class Tool_Polygon(Tool):
+    defaults = {}
+    def __init__(self):
+        self.points = []
+    def click(self, x, y, button):
+        if button == 'l':
+            self.points.append((x, y))
+            #TODO: Update view
+        elif button == 'r' and len(self.points) > 3:
+            return Polygon(self.points)
+            #TODO: Possible yield
+
+class LabelShape(object):
+    instances = 0
+    def __init__(self, label, shape):
+        self.label = label
+        self.shape = shape
+        self.id = LabelShape.instances
+        LabelShape.instances += 1
+    def populate_view(self, view, **kwargs):
+        pass
+    def __hash__(self):
+        return self.id
+    def __cmp__(self, other):
+        if self.id > other.id:
+            return 1
+        elif self.id < other.id:
+            return -1
+        return 0
+    def serialize(self):
+        raise Exception("serialize UNIMPLEMENTED for this type")
+
+class LabelCircle(LabelShape):
+    enum = 1
+    def __init__(self, label, x, y, radius):
+        circle = Point(x,y).buffer(radius)
+        circle.x, circle.y, circle.radius = x, y, radius
+        super(LabelCircle, self).__init__(label, circle)
+    def populate_view(self, view, **kwargs):
+        if isinstance(view, QtGui.QTreeWidgetItem):
+            view.setText(0, str(self.id))
+            view.setText(1, "%d, %d" % (self.shape.x, self.shape.y))
+            view.setText(2, str(self.shape.radius))
+            view.setText(3, str(self.label))
+        elif isinstance(view, QtGui.QPainter):
+            scale = kwargs['scale']
+            x, y = tuple((i - self.shape.radius) * scale \
+                for i in (self.shape.x, self.shape.y))
+            side_width = 2*self.shape.radius * scale
+            view.drawEllipse(x, y, side_width, side_width)
+    def serialize(self):
+        return (LabelCircle.enum, self.shape.x, self.shape.y
+                , self.shape.radius, self.label)
+    def svg_shape(self):
+        '''return the SVG shape that this object represents'''
+        r, g, b = my_colormap[self.label]
+        return svgwrite.shapes.Circle(center=(self.shape.x, self.shape.y)
+            , r=self.shape.radius, stroke=svgwrite.rgb(r, g, b, 'RGB')
+            , fill=svgwrite.rgb(r, g, b, 'RGB'))
 
 class SelectDropType(QtGui.QDialog):
     def __init__(self, parent=None):
@@ -39,12 +187,9 @@ class SelectDropType(QtGui.QDialog):
         self.selection = msgBox.exec_()
 
 class CircleDrawPanel(QtGui.QGraphicsPixmapItem):
-    """
-    Establish a pixmap item on which labelling (painting) will be performed
-    """
+    """Establish a pixmap item on which labelling (painting) will be performed"""
     def __init__(self, pixmap=None, parent=None, scene=None):
         super(CircleDrawPanel, self).__init__()
-
         # Initialise variables
         # Class variables
         self.MAX_DATA_POINTS = 1000
@@ -52,18 +197,13 @@ class CircleDrawPanel(QtGui.QGraphicsPixmapItem):
         self.parent = parent # Parent class - ui mainwindow
         self.current_scale = 1.
         self.defaultColorPixmap = None
-
         # Annotation parameters
-        self.radius = float(10)
+        self.radius = 10.0
         self.opacity = 60 # Opacity of annotation
         self.highlight_opacity = 100
         self.label = 1 # Label of circle
-
         # Annotation results
-        self.centroids = np.zeros((self.MAX_DATA_POINTS, 4), dtype=float) # x,y,radius
-        self.centroid_counter = 0
         self.changeMade = None
-
         # Annotation drawing
         self.pen = QtGui.QPen(QtCore.Qt.SolidLine)
         self.pen.setColor(QtCore.Qt.black)
@@ -71,151 +211,98 @@ class CircleDrawPanel(QtGui.QGraphicsPixmapItem):
         self.num_labels = 9
         self.setBrushes()
         self.highlight_centroid = None # Index of highlighted annotation
-
         # Set up options
         self.setFlag(QtGui.QGraphicsItem.ItemIsMovable, True)
         self.setAcceptHoverEvents(True)
         self.MovingMode = False # Check if image is being moved
-
     def setBrushes(self):
-        """
-        Set the brushes for normal view, annotated view, highlighted view
-        """
+        """Set the brushes for normal view, annotated view, highlighted view"""
         self.testbursh =  QtGui.QBrush(QtGui.QColor(255, 255, 0, self.opacity))
-
         self.savebrush = QtGui.QBrush(QtGui.QColor(255, 0, 0, self.opacity))
-
-        self.savebrushes = [QtGui.QBrush(QtGui.QColor(_colors[label_no][0],
-                                                      _colors[label_no][1],
-                                                      _colors[label_no][2],
+        self.savebrushes = [QtGui.QBrush(QtGui.QColor(my_colormap[label_no][0],
+                                                      my_colormap[label_no][1],
+                                                      my_colormap[label_no][2],
                                                       self.opacity)) for label_no in range(10)]
-
         self.highlightbrush = QtGui.QBrush(QtGui.QColor(0, 0, 255, self.opacity))
-
-        self.highlightbrushes = [QtGui.QBrush(QtGui.QColor(_colors[label_no][0],
-                                                           _colors[label_no][1],
-                                                           _colors[label_no][2],
+        self.highlightbrushes = [QtGui.QBrush(QtGui.QColor(my_colormap[label_no][0],
+                                                           my_colormap[label_no][1],
+                                                           my_colormap[label_no][2],
                                                            self.highlight_opacity)) for label_no in range(10)]
-
     def paint(self, QPainter, QStyleOptionGraphicsItem, QWidget):
-        """
-        Painter to draw annotations
-        """
-
+        """Painter to draw annotations"""
         # Set image and pen
         QPainter.drawPixmap(0, 0, self.pixmap())
         QPainter.setPen(self.pen)
-
         # Draw a circle at the current position of the mouse
         if self.x >= 0 and self.y >= 0:
             QPainter.setBrush(self.testbursh)
-            QPainter.drawEllipse(self.x-self.radius, self.y-self.radius, 2*self.radius, 2*self.radius)
+            QPainter.drawEllipse(
+                self.x-self.radius, self.y-self.radius
+                , 2*self.radius, 2*self.radius)
+        # Draw the annotated shapes
+        for datum in label_dataset.data:
+            if datum.id == -1: #TODO: highlighted
+                QPainter.setBrush(self.highlightbrushes[datum.label])
+            else:
+                QPainter.setBrush(self.savebrushes[datum.label])
+            datum.populate_view(QPainter, scale=self.current_scale)
 
-        # Draw the annotated circles
-        if self.centroid_counter > 0:
-            for idx in range(self.centroid_counter):
-                x, y, radius = self.centroids[idx, :3]*self.current_scale
-                label = self.centroids[idx, 3]
-                if idx is self.highlight_centroid:
-                    # Draw the highlighted circle
-                    QPainter.setBrush(self.highlightbrushes[int(label)])
-                else:
-                    QPainter.setBrush(self.savebrushes[int(label)])
-                QPainter.drawEllipse(x-radius, y-radius, 2*radius, 2*radius)
-
-    # Set events for mouse hovers - As the mouse enters the image, change to cross cursor,
-    # and as it leaves the image, change to arrow cursor
-    def hoverEnterEvent(self, QGraphicsSceneHoverEvent):
+    def hoverEnterEvent(self, event): #QGraphicsSceneHoverEvent
+        '''Set events for mouse hovers.
+        As the mouse enters the image, change to cross cursor,
+        and as it leaves the image, change to arrow cursor'''
         self.setCursor(QtGui.QCursor(QtCore.Qt.CrossCursor))
-
-    def hoverMoveEvent(self, QGraphicsSceneHoverEvent):
-        """
-        While moving inside the picture, update x,y position for drawing annotation tool
-        If instead in moving mode (grab and move image), do nothing.
-        """
+    def hoverMoveEvent(self, event): #QGraphicsSceneHoverEvent
+        '''While moving inside the picture, update x,y position for drawing annotation tool
+        If instead in moving mode (grab and move image), do nothing.'''
         if not self.MovingMode:
-            self.x=QGraphicsSceneHoverEvent.pos().x()
-            self.y=QGraphicsSceneHoverEvent.pos().y()
+            self.x = event.pos().x()
+            self.y = event.pos().y()
             self.update()
-
-    def hoverLeaveEvent(self, QGraphicsSceneHoverEvent):
+    def hoverLeaveEvent(self, event): #QGraphicsSceneHoverEvent
         self.setCursor(QtGui.QCursor(QtCore.Qt.ArrowCursor))
         # Reset position to stop drawing annotation circle outside the image
         self.x, self.y = -1, -1
         self.update()
-
-    def addCircleData(self, point, radius, label):
-        self.centroids[self.centroid_counter, :] = point[0], point[1], radius, label
-        self.centroid_counter += 1
-        self.changeMade = True
-    def removeCircleData(self, idx=None):
-        if not idx:
-            idx = self.centroid_counter
-        if idx == self.centroid_counter:
-            self.highlight_centroid = None
-        else:
-            self.centroids = np.delete(self.centroids, idx, axis=0)
-        self.centroid_counter -= 1
-
-    def mousePressEvent(self, QGraphicsSceneMouseEvent):
-        """
-        Record the annotation when mouse is clicked.
-        If Image is in moving mode, prepare to move image
-        """
+    def mousePressEvent(self, event): # QGraphicsSceneMouseEvent
+        """Record the annotation when mouse is clicked.
+        If Image is in moving mode, prepare to move image"""
         if self.MovingMode is False:
             self.setFlag(QtGui.QGraphicsItem.ItemIsMovable, False)
-            if QGraphicsSceneMouseEvent.button() == 1:
-                point = self.x/self.current_scale, self.y/self.current_scale
+            point = (self.x/self.current_scale, self.y/self.current_scale)
+            if event.button() == 1:
                 radius = self.radius/self.current_scale
-                self.addCircleData(point, radius, self.label)
+                self.add(point, radius, self.label)
                 self.setFocus()
                 # Add centroids to the parent tree widget
-                self.parent.populateTree()
-
-            elif QGraphicsSceneMouseEvent.button() == 2: # make selection if right clicked pressed
-                if self.object_counter >= 1:
-                    select_x, select_y = self.x/self.current_scale, self.y/self.current_scale
-                    dist_2 = np.sum((self.annotations[:,:2]-np.asarray((select_x, select_y)))**2, axis=1)
-                    min_idx = np.argmin(dist_2)
-
-                    if dist_2[min_idx] < (np.min(self.parent.original_size)*0.1)**2:
-                        self.parent.ui.treeWidget.setCurrentItem(self.parent.ui.treeWidget.topLevelItem(min_idx))
-                        self.highlight_annotation = min_idx
-                        self.update()
-                        self.parent.ui.treeWidget.setFocus()
-
+                # self.parent.populateTree()
+            elif event.button() == 2: # make selection if right clicked pressed
+                datum = sorted(label_dataset.data_at(point))
+                if not datum:
+                    return
+                item = self.parent.ui.treeWidget.findItems(
+                    str(datum[0].id), QtCore.Qt.MatchExactly, 0)[0]
+                self.parent.ui.treeWidget.setCurrentItem(item)
+                self.update()
+                self.parent.ui.treeWidget.setFocus()
         else:
             self.setFlag(QtGui.QGraphicsItem.ItemIsMovable, True)
-            # print self.scenePos()
             self.setCursor(QtGui.QCursor(QtCore.Qt.ClosedHandCursor))
-
-    def mouseReleaseEvent(self, QGraphicsSceneMouseEvent):
-        """
-        If image was in moving more, change cursor grab icon
-        """
+    def mouseReleaseEvent(self, event): # QGraphicsSceneMouseEvent
+        """If image was in moving more, change cursor grab icon"""
         if self.MovingMode is True:
             self.setCursor(QtGui.QCursor(QtCore.Qt.OpenHandCursor))
 
-        QtGui.QGraphicsPixmapItem.mouseReleaseEvent(self, QGraphicsSceneMouseEvent)
+        QtGui.QGraphicsPixmapItem.mouseReleaseEvent(self, event)
+    def add(self, point, radius, label, tool='circle'):
+        if tool == 'circle':
+            shape = LabelCircle(label, point[0], point[1], radius)
+        elif tool == 'polygon':
+            pass # TODO
+        label_dataset.add(shape)
+        shape.populate_view(QtGui.QTreeWidgetItem(self.parent.ui.treeWidget))
+        self.changeMade = True
 
-    def setAnnotations(self, data):
-        """
-        Given a set of data, a nx4 dim numpy array, set the annotations
-        Annotations order: centre-x, centre-y, raidus, label
-        """
-        self.centroids = np.zeros((self.MAX_DATA_POINTS, 4), dtype=float) # x,y,radius
-        self.centroid_counter = data.shape[0]
-        self.centroids[:self.centroid_counter,:] = data
-
-    def resetAnnotations(self):
-        """
-        Reset all annotations for this pixmap
-        """
-        self.x, self.y = -1, -1
-        self.centroids = np.zeros((self.MAX_DATA_POINTS, 4), dtype=float) # x,y,radius
-        self.centroid_counter = 0
-        self.highlight_centroid = None
-        # Note: we keep the scale and radius variables as they stay constant as moving through images
 
 class MainWindow(QtGui.QMainWindow):
     """
@@ -239,8 +326,9 @@ class MainWindow(QtGui.QMainWindow):
         self.scene = None
         self.imagePanel = None
         self.image_index = None
+        self.images = None
         self.default_directory = None
-        self.imagesFolder = None
+        self.folder_image = None
         self.pixmap = None
 
         # Define key and mouse function names
@@ -327,7 +415,7 @@ class MainWindow(QtGui.QMainWindow):
                 urls = QDropEvent.mimeData().urls()
                 assert len(urls) == 1
                 imageFolder = str(urls[0].toString()[7:])
-                self.openImageDirectory(imagesFolder=imageFolder)
+                self.openImageDirectory(folder_image=imageFolder)
         else:
             QDropEvent.ignore()
 
@@ -362,7 +450,7 @@ class MainWindow(QtGui.QMainWindow):
                 self.zoom(self.scroll_zoom_delta)
             if np.sign(QWheelEvent.delta()) < 0:
                 self.zoom(-self.scroll_zoom_delta)
-        elif modifiers == QtCore.Qt.AltModifier:
+        else:
             # Change cursor radius
             self.imagePanel.radius += np.sign(QWheelEvent.delta())
             self.imagePanel.update()
@@ -390,16 +478,17 @@ class MainWindow(QtGui.QMainWindow):
             if self.imagePanel.x >= 0:
                 point = (self.imagePanel.x/self.imagePanel.current_scale, self.imagePanel.y/self.imagePanel.current_scale)
                 radius = self.imagePanel.radius/self.imagePanel.current_scale
-                self.addCircleData(point, radius, self.imagePanel.label)
-                self.populateTree()
+                self.add(point, radius, self.imagePanel.label)
+                # self.populateTree()
         elif key == QtCore.Qt.Key_Period:
         # Browse images, prev <-> next
             self.ui.next_btn.animateClick()
         elif key == QtCore.Qt.Key_Comma:
             self.ui.prev_btn.animateClick()
-        elif key == QtCore.Qt.Key_Backspace:
-            self.imagePanel.removeCircleData() # delete last
-            self.populateTree()
+        elif key == QtCore.Qt.Key_Backspace and len(label_dataset.data):
+            shape = label_dataset.data[-1]
+            label_dataset.remove(shape)
+            # self.populateTree()
             self.update()
         else:
             # Change label options
@@ -459,24 +548,22 @@ class MainWindow(QtGui.QMainWindow):
     def treeKeyPress(self, event):
         """ Keyboard events on the tree - move through annotations or delete them """
         selected_item = self.ui.treeWidget.currentItem()
-        if selected_item is not None:
-            selected_index = int(selected_item.text(0))-1
-        else:
+        if selected_item is None:
             return
         key = event.key()
+        datum = label_dataset.find(int(selected_item.text(0)))
         do_update = True
-        if key == QtCore.Qt.Key_Delete and selected_index is not None:
-# Delete selected item
-            self.imagePanel.removeCircleData(idx=selected_index)
+        if key == QtCore.Qt.Key_Delete and datum is not None:
+            label_dataset.remove(datum)
             next_item = self.ui.treeWidget.itemAbove(selected_item)
             if next_item:
                 self.ui.treeWidget.setCurrentItem(next_item)
                 self.imagePanel.highlight_centroid = int(next_item.text(0)) - 1
             else:
                 self.imagePanel.highlight_centroid = None
-            self.ui.treeWidget.removeItemWidget(selected_item)
+            self.ui.treeWidget.takeTopLevelItem(self.ui.treeWidget.indexOfTopLevelItem(selected_item))
         elif key in [QtCore.Qt.Key_Down, QtCore.Qt.Key_Up]:
-# Navigate through items - highlighting the current selection on the image
+            # Navigate through items - highlighting the current selection on the image
             if key == QtCore.Qt.Key_Up:
                 next_item = self.ui.treeWidget.itemAbove(selected_item)
             else:
@@ -491,55 +578,39 @@ class MainWindow(QtGui.QMainWindow):
             self.update()
             self.imagePanel.update()
             self.ui.treeWidget.update()
-
     def populateTree(self):
         """ Update the tree when a new annotation is added """
-        # Clear previous values
         self.ui.treeWidget.clear()
- 
-        # Go through the centroids and add the data points
-        for i in range(self.imagePanel.centroid_counter):
-            column = QtGui.QTreeWidgetItem(self.ui.treeWidget)
-            column.setText(0, str(i+1))
-            column.setText(1, ','.join(['{0:.0f}'.format(x) for x in self.imagePanel.centroids[i, :2]]))
-            column.setText(2, '{:.1f}'.format(self.imagePanel.centroids[i, 2]))
-            column.setText(3, str(self.imagePanel.centroids[i, 3]))
-
+        for datum in label_dataset.data:
+            datum.populate_view(QtGui.QTreeWidgetItem(self.ui.treeWidget))            
     def change_opacity(self, value):
         """ From the slider, change the opacity of the current annotations """
         self.ui.opacityBox.setTitle('Label Opacity: {}'.format(value))
         self.imagePanel.opacity = value
         self.imagePanel.setBrushes()
         self.imagePanel.update()
-
     def change_brightness_contrast(self):
         """ Grab slider values and change brightness and contrast of the image """
         # Get current contrast and brightness
         b_value = self.ui.brightness_slider.value()
         c_value = self.ui.contrast_slider.value()
-
         # Apply transformation
         pixmap = adjustPixmap(self.imagePanel.defaultColorPixmap, brightness=b_value, contrast=c_value)
         self.imagePanel.setPixmap(pixmap)
-
     def change_brightness(self, value):
         """ From the slider, change the brightness of the current image """
         self.ui.brightness_box.setTitle('Brightness: {}'.format(value))
         self.change_brightness_contrast()
-
     def change_contrast(self, value):
         """ From the slider, change the contrast of the current image """
         self.ui.contrast_box.setTitle('Contrast: {}'.format(value))
         self.change_brightness_contrast()
-
     def initImage(self, pixmap):
         """ Load the first image onto graphics view - initialise graphics item """
-
         # Save original image size
         self.original_size = pixmap.width(), pixmap.height()
         self.multiplier = float(1)
         self.firstImage = False
-
         # Set scene and add to graphics view
         self.scene = QtGui.QGraphicsScene()
         self.imagePanel = CircleDrawPanel(scene=self.scene, parent=self)
@@ -549,16 +620,15 @@ class MainWindow(QtGui.QMainWindow):
         self.scene.addItem(self.imagePanel)
         self.ui.graphicsView.setScene(self.scene)
         self.ui.graphicsView.setSceneRect(0, 0,
-                                          self.ui.graphicsView.size().width()-10,
-                                          self.ui.graphicsView.size().height()-10)
-
-
-    def loadImage(self,image_path):
+            self.ui.graphicsView.size().width()-10,
+            self.ui.graphicsView.size().height()-10)
+    def loadImage(self, image_path):
         """ Given an image path, load image onto graphics item """
-
+        global label_dataset
         # Get current pixmap
         self.pixmap = QtGui.QPixmap(image_path)
         pixmap = self.pixmap
+        label_dataset = LabelDataset(image_path, image_size=(pixmap.height(), pixmap.width()))
         if self.original_size is not None:
             assert pixmap.width() == self.original_size[0] and \
                    pixmap.height() == self.original_size[1], \
@@ -577,12 +647,8 @@ class MainWindow(QtGui.QMainWindow):
         self.imagePanel.setPixmap(pixmap)
         self.imagePanel.defaultColorPixmap = pixmap
         self.change_brightness_contrast()
-        self.imagePanel.resetAnnotations()
-        self.populateTree()
-
         # Reset change status - To allow for auto saving of images without any fruits
         self.imagePanel.changeMade = True
-
         # Load annotation if on already exists (and if autoload is ticked)
         #@TODO: First image does not auto-load annotations because UI is not init'd yet @priority: low
         if self.ui.autoload_chk.isChecked():
@@ -606,33 +672,22 @@ class MainWindow(QtGui.QMainWindow):
 
     def changeImage(self, text):
         """ Call load image and set new image as title, combo box entry and image # """
-        self.loadImage("%s/%s" % (self.imagesFolder, text))
+        self.loadImage("%s/%s" % (self.folder_image, text))
         self.setWindowTitle("%s - Pychet Circle Annotator" % (self.ui.imageComboBox.currentText()))
         self.image_index = self.ui.imageComboBox.currentIndex()
         self.ui.image_index_label.setText('{:.0f}/{:.0f}'.format(self.image_index+1, self.ui.imageComboBox.count()))
 
-    def openImageDirectory(self, imagesFolder=None):
+    def openImageDirectory(self, folder_image=None):
         """ Open browser containing the set of images to be labelled """
-        if imagesFolder is None:
-            # Specify default folder for quick access
-            self.default_directory = "/media/suchet/d-drive/data/processed/2013-03-20-melbourne-apple-farm/shrimp/Run4-5/ladybug/appleBinaryCombined"
-            self.default_directory = "/media/suchet/d-drive/Dropbox/ACFR PhD/Experimental-Results/mango-labelling-2016/circle-labels"
-            opendirectory = self.default_directory
-            if self.imagesFolder is not None:
-                opendirectory = self.imagesFolder
-
-            # Get output from browser
-            self.imagesFolder = str(QtGui.QFileDialog.getExistingDirectory(self, "Open directory", opendirectory))
-        else:
-            self.imagesFolder = imagesFolder
-
+        self.folder_image = folder_image or \
+            str(QtGui.QFileDialog.getExistingDirectory(
+                self, "Open directory", opendirectory))
         # Grab images and set up combobox
-        allFiles = os.listdir(self.imagesFolder)
-        extensions = ['.png', '.jpg', '.jpeg', '.tiff', '.bmp']
-        imageFiles = sorted([x for x in allFiles if os.path.splitext(x)[-1].lower() in extensions])
+        self.images = sorted([x for x in os.listdir(self.folder_image) \
+            if os.path.splitext(x)[-1].lower() \
+            in ['.png', '.jpg', '.jpeg', '.tiff', '.bmp']])
         self.ui.imageComboBox.clear()
-        self.ui.imageComboBox.addItems(imageFiles)
-
+        self.ui.imageComboBox.addItems(self.images)
         # Reset window title to current image
         self.setWindowTitle("%s - Pychet Annotator" % (self.ui.imageComboBox.currentText()))
 
@@ -641,57 +696,21 @@ class MainWindow(QtGui.QMainWindow):
         if dir_path:
             self.labelFolder = dir_path
         else:
-            opendirectory = self.imagesFolder or '.'
+            opendirectory = self.folder_image or '.'
             self.labelFolder = str(QtGui.QFileDialog.getExistingDirectory(self, "Open directory", opendirectory))
-    @classmethod
-    def saveSVG(cls, output_filename, data):
-        """Save the circles as an SVG file"""
-        dwg = svgwrite.Drawing(output_filename, profile='tiny')
-        for row in data:
-            x, y, radius, label = row
-            r, g, b = _colors[int(label)]
-            dwg.add(dwg.circle(center=(x, y), r=radius, stroke=svgwrite.rgb(r, g, b, 'RGB')
-                , fill=svgwrite.rgb(r, g, b, 'RGB')))
-        dwg.save()
-
-
-    @classmethod
-    def saveCSV(cls, output_filename, data):
-        """Save the circles as CSV"""
-        # Annotation header and data
-        header = ['item', 'c-x', 'c-y', 'radius', 'label']
-        fmt = '%.0f,%3.2f,%3.2f,%3.2f,%.0f'
-        # Diplay saving status and save to file (headeer first)
-        with open(output_filename, 'wb') as f:
-            f.write(bytes('# '+','.join(header)+'\n'))
-
-        if data.size > 0:
-            # If there is data, add item numbers for the first column
-            data = np.hstack((np.arange(data.shape[0])[:,None], data))
-            np.savetxt(output_filename, data, delimiter=',', fmt=fmt, header=','.join(header))
-
-
     def saveAnnotations(self):
-        """
-        Save annotations as .csv files
-        Entries contains item cx, cy, radius, label
-        By default, save to same level as images, into folder named labels-circles
-        """
-
+        """Save annotations"""
         # Get the current image file name
         current_filename = os.path.splitext(str(self.ui.imageComboBox.currentText()))[0]
         if self.labelFolder is None:
-            self.labelFolder = os.path.join(self.imagesFolder, '../labels-circles/')
-
+            self.labelFolder = os.path.join(self.folder_image, '../labels-circles/')
         # Create label folder
         if not os.path.exists(self.labelFolder):
             self.ui.statusBar.showMessage('Created a Label Directory')
             os.makedirs(self.labelFolder)
-
         # Establish save file
         save_files = (os.path.join(self.labelFolder, current_filename + '.csv')
                     , os.path.join(self.labelFolder, current_filename + '.svg'))
-
         # If save file already exists, Ask user if they want to overwrite
         if any(map(os.path.exists, save_files)):
             overwrite_msg = 'Label file already exists for {}, overwrite?'.format(current_filename)
@@ -699,70 +718,48 @@ class MainWindow(QtGui.QMainWindow):
             if reply == QtGui.QMessageBox.Yes:
                 self.ui.statusBar.showMessage('Overwriting previous label')
             else:
-                # If they say no - don't save
                 return 0
-        data = self.imagePanel.centroids[:self.imagePanel.centroid_counter, :]
-        self.saveCSV(save_files[0], data)
-        self.saveSVG(save_files[1], data)
         self.ui.statusBar.showMessage('Saved to {}'.format(current_filename))
+        label_dataset.save(os.path.join(self.labelFolder, current_filename))
 
     def loadFromFile(self, filename=None):
-        """
-        Given a file name, load the .csv file and the associated annotations
-        """
-
-        # If its an empty call, prompt open file
-        if filename is None:
+        """load image and associated label data"""
+        if filename is None: # If its an empty call, prompt open file
             filters = "Text files (*.csv);;All (*)"
-            f = QtGui.QFileDialog.getOpenFileNameAndFilter(self, "Open Label File", '.', filters)
+            f = QtGui.QFileDialog.getOpenFileNameAndFilter(
+                self, "Open Label File", '.', filters)
             filename = str(f[0])
-
-        # Open file
-        with open(filename, 'r') as f:
-            # Skip header
-            next(f)
-            # Read csv data
-            reader = csv.reader(f)
-            data = np.array(list(reader)).astype(float)
-
-        # If there is some data, add to image annotations
-        if data.size>0:
-            self.imagePanel.setAnnotations(data[:,1:])
-
-        # Update annotation list
+        #TODO: SVG loading
+        label_dataset.load(filename)
         self.populateTree()
 
     def aboutWindow(self):
         """ Display information about the software """
+        message = """About the Circle Annotator:
+Circle annotation tool.
+Pick image directory (containing .jpg or .png files) and start labelling! Labels saved as .csv in the same parent folder as the images, under folder labels-circles
+The Labels are stored in format item, c-x, c-y, radius, label #.
+If Auto save is selected, the annotations will be saved upon clicking next/previous image (or by ctrl + s)
+If Auto Load is selected, when an image loads, so will its annotations in the labels folder if they exist.
+To delete an annotation, select it with a right click of from the annotation list and press delete.
 
-        message = 'About the Circle Annotator:\t\t\n\n'
-        message += 'Circle annotation tool.\n'
-        message += 'Pick image directory (containing .jpg or .png files) and start labelling! Labels saved as .csv in the same parent folder as the images, under folder labels-circles. '
-        message += 'The Labels are stored in format item, c-x, c-y, radius, label #.\nIf Auto save is selected, the annotations will be saved upon clicking next/previous image (or by ctrl + s). '
-        message += 'If Auto Load is selected, when an image loads, so will its annotations in the labels folder if they exist.\n'
-        message += 'To delete an annotation, select it with a right click of from the annotation list and press ' \
-                   'delete.\n\n'
-        message += 'Controls:\n\n'
-        message += 'Zoom in/out: \t-/+ or Ctrl + Wheel Button\n'
-        message += 'Move Image: \tShift + Wheel Button\n'
-        message += 'Circle Radius: \t\Alt + Wheel Button:\n'
-        message += 'Label ID: \t\t[1-9]\n'
-        message += 'Annotate: \t\tSpace or Left Click\n'
-        message += 'Previous/Next Image: \t</>\n'
-        message += 'Save Annotation: \tCtrl + s\n'
-        message += 'Exit application: \tESC\n'
+Controls:
+Zoom in/out: \t-/+ or Ctrl + Wheel Button
+Move Image: \tShift + Wheel Button
+Circle Radius: \tAlt + Wheel Button:
+Label ID: \t\t[1-9]
+Annotate: \t\tSpace or Left Click
+Previous/Next Image: \t</>
+Save Annotation: \tCtrl + s
+Exit application: \tESC"""
         QtGui.QMessageBox.information(self, 'About Pychet Circle Annotator', message)
 
     def loadAnnotations(self):
-        """
-        Look for annotation file in label folder and load data
-        """
-
+        """Look for annotation file in label folder and load data"""
         # Get current file name
         filename = os.path.splitext(str(self.ui.imageComboBox.currentText()))[0]
         if self.labelFolder is None:
-            self.labelFolder = os.path.join(self.imagesFolder, '../labels-circles/')
-
+            self.labelFolder = os.path.join(self.folder_image, '../labels-circles/')
         # Get load file name
         loadfile = os.path.join(self.labelFolder, filename+'.csv')
         if os.path.exists(loadfile):
@@ -770,39 +767,11 @@ class MainWindow(QtGui.QMainWindow):
         else:
             self.ui.statusBar.showMessage('No label file exists')
             return 0
-
         # Load data
         self.loadFromFile(filename=loadfile)
-
         # If labels are loaded then toggle changeMade to False
         self.imagePanel.changeMade = False
 
-
-    def quickview(self):
-        """
-        Show an image without selecting any folder - debug mode
-        """
-
-        # Manually set image to load
-        folder_path = '/media/suchet/d-drive/data/processed/2013-03-20-melbourne-apple-farm/shrimp/Run4-5/ladybug/appleBinaryCombined/images/'
-        image_path = os.path.join(folder_path , '20130320T013717.962834_44.png')
-        folder_path = '/media/suchet/d-drive/Dropbox/ACFR PhD/Experimental-Results/mango-labelling-2016/circle-labels/images'
-        image_path = os.path.join(folder_path , '20151124T025455.360524.png')
-
-        # Load image and set original size
-        self.pixmap = QtGui.QPixmap(image_path)
-        self.original_size = self.pixmap.width(), self.pixmap.height()
-        self.multiplier = float(1)
-
-        # Set graphics scene and add image
-        self.scene = QtGui.QGraphicsScene()
-        self.imagePanel = CircleDrawPanel(scene=self.scene, parent=self)
-        self.imagePanel.setPixmap(self.pixmap)
-        self.imagePanel.defaultColorPixmap = self.pixmap
-        self.change_brightness_contrast()
-        self.scene.addItem(self.imagePanel)
-        self.ui.graphicsView.setScene(self.scene)
-        self.ui.graphicsView.setSceneRect(self.scene.itemsBoundingRect())
 
 class FitImageGraphicsView(QtGui.QGraphicsView):
     """
