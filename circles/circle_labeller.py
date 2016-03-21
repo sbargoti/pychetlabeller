@@ -71,11 +71,11 @@ class LabelDataset(object):
             try:
                 is_circle = True #TODO: complete stub
                 if is_circle:
-                    self.add(LabelCircle(int(line[4])
-                        , float(line[1]), float(line[2]), float(line[3])))
+                    self.add(LabelCircle(int(line[4]), float(line[1]), float(line[2]), float(line[3])))
             except ValueError:
                 # Things that don't convert will be skipped
-                print "WARNING: Skipped a line (ValueError)"
+                if not line[0][0] == '#': # ignore comments
+                    print "WARNING: Skipped a line (ValueError) '%s'" % line
         label_file.close()
     def find(self, labelshape_id):
         '''find a LabelShape given by ID'''
@@ -99,18 +99,17 @@ class LabelDataset(object):
 class Tool(object):
     def __init__(self):
         self.position = QtCore.QPointF(0, 0)
-    def click(self, parent, button):
+    def click(self, parent, button, release=False):
         raise NotImplementedError("Tool::click")
     def wheel(self, parent, QWheelEvent):
-        ## Zoom support
-        delta = np.sign(QWheelEvent.delta()) * 0.1 
-        if QtGui.QApplication.keyboardModifiers() == QtCore.Qt.ControlModifier:
-            parent.zoom(delta)
+        pass
     def paint(self, parent, QPainter, QStyleOptionGraphicsItem, QWidget):
         raise NotImplementedError("Tool::paint")
     def mouse_move(self, parent, pos):
         self.position = pos
     def key_down(self, parent, event):
+        pass
+    def key_up(self, parent, event):
         pass
     def enable(self, parent):
         pass
@@ -119,22 +118,25 @@ class Tool(object):
 
 class Tool_Circle(Tool):
     '''This tool creates a circle when clicked'''
-    defaults = {
-        'radius': 10,
-        'radius_scroll_delta': 1,
-        'label': 1
-    }
     def __init__(self):
         super(Tool_Circle, self).__init__()
-        self.radius = Tool_Circle.defaults['radius']
-        self.label = Tool_Circle.defaults['label']
-    def click(self, parent, button):
-        if button == QtCore.Qt.LeftButton:
-            parent.add_datum(LabelCircle(self.label, self.position.x()
-                , self.position.y(), self.radius))
+        self.radius = 20
+        self.label = 1
+        self.radius_scroll_delta = 2
+    def click(self, parent, button, release=False):
+        modifiers = QtGui.QApplication.keyboardModifiers()
+        point = (self.position.x(), self.position.y())
+        if release:
+            return
+        if modifiers == QtCore.Qt.ShiftModifier and button == QtCore.Qt.LeftButton:
+            datum = sorted(label_dataset.data_at(point))
+            if datum:
+                parent.highlight(datum[0])
+        elif modifiers == QtCore.Qt.NoModifier and button == QtCore.Qt.LeftButton:
+            parent.add_datum(LabelCircle(self.label, point[0], point[1], self.radius))
     def wheel(self, parent, QWheelEvent):
         delta = QWheelEvent.delta()
-        self.radius += np.sign(delta) * self.defaults['radius_scroll_delta']
+        self.radius += np.sign(delta) * self.radius_scroll_delta
         parent.update()
         super(Tool_Circle, self).wheel(parent, QWheelEvent)
     def paint(self, parent, QPainter, QStyleOptionGraphicsItem, QWidget):
@@ -149,54 +151,48 @@ class Tool_Circle(Tool):
         key = event.key()
         if key == QtCore.Qt.Key_Backspace and len(label_dataset.data):
             shape = label_dataset.data[-1]
-            label_dataset.remove(shape)
+            parent.imagePanel.remove_datum(shape, from_tree=True)
             parent.update()
+            parent.imagePanel.update()
+            parent.ui.treeWidget.update()
         else:
             keystr = str(QtCore.QString(QtCore.QChar(key)))
             if keystr and any([keystr == chr(i) for i in xrange(ord('0'), 1 + ord('9'))]):
-                print keystr
                 self.label = int(keystr)
                 parent.ui.item_label_txt.setText(keystr)
 
-class Tool_Select(Tool):
-    defaults = {}
+class Tool_TransformView(Tool):
     def __init__(self):
-        super(Tool_Select, self).__init__()
-        self.modifiers = QtCore.Qt.NoModifier
+        super(Tool_TransformView, self).__init__()
         self.is_moving = False
         self.last_cursor = None
-    def click(self, parent, button):
-        point = (self.position.x(), self.position.y())
-        if self.modifiers == QtCore.Qt.ShiftModifier:
+    def click(self, parent, button, release=False):
+        if release:
+            parent.setCursor(QtGui.QCursor(QtCore.Qt.OpenHandCursor))
+            # parent.setDragMode(QtGui.QGraphicsView.ScrollHandDrag)
+            parent.setFlag(QtGui.QGraphicsItem.ItemIsMovable, False)
+        else:
             parent.setCursor(QtGui.QCursor(QtCore.Qt.ClosedHandCursor))
-        elif self.modifiers == QtCore.Qt.NoModifier:
-            datum = sorted(label_dataset.data_at(point))
-            if datum:
-                item = parent.parent.ui.treeWidget.findItems(
-                str(datum[0].id), QtCore.Qt.MatchExactly, 0)[0]
-                parent.parent.ui.treeWidget.setCurrentItem(item)
-                parent.update()
-                parent.parent.ui.treeWidget.setFocus()
-    def wheel(self, parent, delta):
-        pass
+            # parent.setDragMode(QtGui.QGraphicsView.NoDrag)
+            parent.setFlag(QtGui.QGraphicsItem.ItemIsMovable, True)
+    def wheel(self, parent, QWheelEvent):
+        delta = np.sign(QWheelEvent.delta()) * 0.1 
+        parent.zoom(delta)
     def paint(self, parent, QPainter, QStyleOptionGraphicsItem, QWidget):
         pass
     def enable(self, parent):
         self.last_cursor = parent.cursor()
-        parent.setFlag(QtGui.QGraphicsItem.ItemIsMovable, True)
         parent.setCursor(QtGui.QCursor(QtCore.Qt.OpenHandCursor))
     def disable(self, parent):
-        parent.setFlag(QtGui.QGraphicsItem.ItemIsMovable, False)
         parent.setCursor(self.last_cursor)
         self.last_cursor = None
 
 class Tool_Polygon(Tool):
-    defaults = {}
-    def __init__(self):
-        self.points = []
-    def click(self, x, y, button):
-        pass
+    '''not yet implemented'''
+    pass #
+
 class LabelShape(object):
+    '''base class of all data'''
     instances = 0
     def __init__(self, label, shape):
         self.label = label
@@ -219,21 +215,20 @@ class LabelShape(object):
 class LabelCircle(LabelShape):
     enum = 1
     def __init__(self, label, x, y, radius):
-        circle = Point(x,y).buffer(radius)
-        circle.x, circle.y, circle.radius = x, y, radius
+        circle = Point(x, y).buffer(radius)
+        (circle.x, circle.y, circle.radius) = (x, y, radius)
         super(LabelCircle, self).__init__(label, circle)
     def populate_view(self, view, **kwargs):
         if isinstance(view, QtGui.QTreeWidgetItem):
-            view.setText(0, str(self.id))
-            view.setText(1, "%d, %d" % (self.shape.x, self.shape.y))
+            # NOTE: It is important not to change the first field as it is used for lookup
+            view.setText(0, str(self.id)) 
+            view.setText(1, "(%d, %d)" % (self.shape.x, self.shape.y))
             view.setText(2, str(self.shape.radius))
             view.setText(3, str(self.label))
         elif isinstance(view, QtGui.QPainter):
-            scale = kwargs['scale']
-            x, y = tuple((i - self.shape.radius) * scale \
-                for i in (self.shape.x, self.shape.y))
-            side_width = 2*self.shape.radius * scale
-            view.drawEllipse(x, y, side_width, side_width)
+            (x, y) = (self.shape.x - self.shape.radius, self.shape.y - self.shape.radius)
+            side_width = 2*self.shape.radius
+            view.drawEllipse(x , y, side_width, side_width)
     def serialize(self):
         return (LabelCircle.enum, self.shape.x, self.shape.y
                 , self.shape.radius, self.label)
@@ -259,40 +254,35 @@ class SelectDropType(QtGui.QDialog):
 class CircleDrawPanel(QtGui.QGraphicsPixmapItem):
     """Establish a pixmap item on which labelling (painting) will be performed"""
     def __init__(self, pixmap=None, parent=None, scene=None):
+        self.is_initialised = False
         super(CircleDrawPanel, self).__init__()
-        # Initialise variables
         # Class variables
-        self.MAX_DATA_POINTS = 1000
-        self.x, self.y = -1, -1 # Location of cursor
         self.parent = parent # Parent class - ui mainwindow
         self.current_scale = 1.0
         self.defaultColorPixmap = None
-        self.highlighted_id = None
+        self.highlighted_datum = None
         # Annotation parameters
-        self.radius = 10.0
         self.opacity = 60 # Opacity of annotation
         self.highlight_opacity = 100
-        self.label = 1 # Label of circle
-        self.tool_last = Tool_Select()
-        # Annotation results
-        self.changeMade = None
         # Annotation drawing
-        self.pen = QtGui.QPen(QtCore.Qt.SolidLine)
-        self.pen.setColor(QtCore.Qt.black)
-        self.pen.setWidth(1)
+        self.changeMade = None
+        self.tool_last = Tool_TransformView()
         self.tool = Tool_Circle()
         self.num_labels = 9
+        self.pen = None
+        #TODO: Tidy brushes
+        self.highlightbrushes = []
+        self.savebrushes = []
         self.setBrushes()
-        self.highlight_centroid = None # Index of highlighted annotation
         # Set up options
         self.setAcceptHoverEvents(True)
-        self.MovingMode = False # Check if image is being moved
-        self.setFlag(QtGui.QGraphicsItem.ItemIsMovable, False) # todo
+        self.setFlag(QtGui.QGraphicsItem.ItemIsMovable, False)
         self.tool.enable(self)
+        self.is_initialised = True
     def change_tool(self, tool=None):
         '''set the active tool'''
         if tool:
-            self.tool_last = tool
+            self.tool_last = self.tool
             self.tool = tool
         else: # swap between previous tool
             (self.tool, self.tool_last) = (self.tool_last, self.tool)
@@ -300,19 +290,18 @@ class CircleDrawPanel(QtGui.QGraphicsPixmapItem):
         self.tool.enable(self)
     def zoom(self, delta):
         """Zoom in to image by a fraction delta"""
-        self.current_scale += delta
+        self.current_scale = max(self.current_scale + delta, 0.1)
         self.setScale(self.current_scale)
-        # self.x = -1
     def setBrushes(self):
         """Set the brushes for normal view, annotated view, highlighted view"""
-        self.testbursh =  QtGui.QBrush(QtGui.QColor(255, 255, 0, self.opacity))
-        self.savebrush = QtGui.QBrush(QtGui.QColor(255, 0, 0, self.opacity))
+        self.pen = QtGui.QPen(QtCore.Qt.SolidLine)
+        self.pen.setColor(QtCore.Qt.black)
+        self.pen.setWidth(1)
         self.savebrushes = [
             QtGui.QBrush(QtGui.QColor(my_colormap[label_no][0],
             my_colormap[label_no][1],
             my_colormap[label_no][2],
             self.opacity)) for label_no in range(10)]
-        self.highlightbrush = QtGui.QBrush(QtGui.QColor(0, 0, 255, self.opacity))
         self.highlightbrushes = [
             QtGui.QBrush(QtGui.QColor(my_colormap[label_no][0],
            my_colormap[label_no][1],
@@ -320,41 +309,55 @@ class CircleDrawPanel(QtGui.QGraphicsPixmapItem):
            self.highlight_opacity)) for label_no in range(10)]
     def paint(self, QPainter, QStyleOptionGraphicsItem, QWidget):
         """Painter to draw annotations"""
+        if not self.is_initialised:
+            return
         # Set image and pen
         QPainter.drawPixmap(0, 0, self.pixmap())
         QPainter.setPen(self.pen)
         self.tool.paint(self, QPainter, QStyleOptionGraphicsItem, QWidget)
         for datum in label_dataset.data:
-            if datum.id == self.highlighted_id:
+            if datum is self.highlighted_datum:
                 QPainter.setBrush(self.highlightbrushes[datum.label])
             else:
                 QPainter.setBrush(self.savebrushes[datum.label])
-            datum.populate_view(QPainter, scale=1.0)
+            datum.populate_view(QPainter)
     def hoverMoveEvent(self, event): #QGraphicsSceneHoverEvent
         '''While moving inside the picture, update x,y position for drawing annotation tool
         If instead in moving mode (grab and move image), do nothing.'''
         self.tool.mouse_move(self, event.pos())
         self.update()
     def mousePressEvent(self, event): # QGraphicsSceneMouseEvent
-        """Record the annotation when mouse is clicked.
-        If Image is in moving mode, prepare to move image"""
         self.setFocus()
         self.tool.click(self, event.button())
     def wheelEvent(self, QWheelEvent):
         self.tool.wheel(self, QWheelEvent)
     def mouseReleaseEvent(self, event): # QGraphicsSceneMouseEvent
-        """If image was in moving more, change cursor grab icon"""
+        self.tool.click(self, event.button(), release=True)
+        #NOTE: The following line has to be here to propagate the event
         QtGui.QGraphicsPixmapItem.mouseReleaseEvent(self, event)
     def add_datum(self, label_shape):
         label_dataset.add(label_shape)
         item = QtGui.QTreeWidgetItem(self.parent.ui.treeWidget)
         label_shape.populate_view(item)
         self.changeMade = True
-
+    def remove_datum(self, label_shape, from_tree=False):
+        if from_tree:
+            tree = self.parent.ui.treeWidget
+            item = tree.findItems(str(label_shape.id), QtCore.Qt.MatchExactly, 0)[0]
+            tree.takeTopLevelItem(tree.indexOfTopLevelItem(item))
+        if self.highlighted_datum is label_shape:
+            self.highlighted_datum = None
+        label_dataset.remove(label_shape)
+    def highlight(self, datum):
+        self.highlighted_datum = datum
+        if datum:
+            item = self.parent.ui.treeWidget.findItems(
+                str(datum.id), QtCore.Qt.MatchExactly, 0)[0]
+            self.parent.ui.treeWidget.setCurrentItem(item)
+        self.update()
+        self.parent.ui.treeWidget.setFocus()
 class MainWindow(QtGui.QMainWindow):
-    """
-    The main window of the GUI - designed using Qt Designer
-    """
+    """The main window of the GUI - designed using Qt Designer"""
     def __init__(self):
         self.scroll_zoom_delta = 0.1
         QtGui.QMainWindow.__init__(self)
@@ -367,7 +370,6 @@ class MainWindow(QtGui.QMainWindow):
         self.firstImage = True
         self.labelFolder = None
         self.imageFolder = None
-        self.multiplier = None
         self.scene = None
         self.imagePanel = None
         self.image_index = None
@@ -376,6 +378,7 @@ class MainWindow(QtGui.QMainWindow):
         self.folder_image = None
         self.pixmap = None
         # Define key and mouse function names
+        self.key_alternate_tool = QtCore.Qt.Key_Control
         self.keyPressEvent = self.mainKeyPressEvent
         self.keyReleaseEvent = self.mainKeyReleaseEvent
         self.ui.treeWidget.keyPressEvent = self.treeKeyPress
@@ -391,10 +394,11 @@ class MainWindow(QtGui.QMainWindow):
         # self.ui.graphicsView.viewport().installEventFilter(self)
     def connectSignals(self):
         """ Connect all the components on the GUI to respective functions """
-        # Folder/image navigation
         ui = self.ui
-        handlers = \
-        [[ui.browse_btn, QtCore.SIGNAL("clicked()"), self.openImageDirectory],
+        # handlers: [UI Element, Signal, Handler]
+        handlers = [ \
+        # Folder/image navigation
+        [ui.browse_btn, QtCore.SIGNAL("clicked()"), self.openImageDirectory],
         [ui.label_folder_btn, QtCore.SIGNAL("clicked()"), self.setLabelDirectory],
         [ui.prev_btn, QtCore.SIGNAL("clicked()"), self.previousImage],
         [ui.next_btn, QtCore.SIGNAL("clicked()"), self.nextImage],
@@ -413,11 +417,11 @@ class MainWindow(QtGui.QMainWindow):
         [ui.contrast_slider, QtCore.SIGNAL('valueChanged(int)'), self.change_contrast]]
         for handler in handlers:
             self.connect(handler[0], handler[1], handler[2])
-        self.ui.actionSave_Label.setShortcut(QtGui.QKeySequence("Ctrl+s"))
-        self.ui.actionExit_3.setStatusTip('Exit Application')
-        self.ui.actionExit_3.setShortcut(QtCore.Qt.Key_Escape)
-        self.ui.actionAbout.setShortcut(QtCore.Qt.Key_F1)
-        self.ui.actionLoad_Label.setShortcut(QtGui.QKeySequence("Ctrl+l"))
+        ui.actionSave_Label.setShortcut(QtGui.QKeySequence("Ctrl+s"))
+        ui.actionExit_3.setStatusTip('Exit Application')
+        ui.actionExit_3.setShortcut(QtCore.Qt.Key_Escape)
+        ui.actionAbout.setShortcut(QtCore.Qt.Key_F1)
+        ui.actionLoad_Label.setShortcut(QtGui.QKeySequence("Ctrl+l"))
         # Drag and drop data
         self.setAcceptDrops(True)
     def dragEnterEvent(self, QDragEnterEvent):
@@ -446,22 +450,24 @@ class MainWindow(QtGui.QMainWindow):
             QDropEvent.ignore()
     def setscreenproperties(self):
         """Set scene properties - disable scrolling"""
-        self.ui.graphicsView.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOff)
-        self.ui.graphicsView.setVerticalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOff)
-        # self.ui.graphicsView.setFocusPolicy(QtCore.Qt.NoFocus)
+        self.ui.graphicsView.setHorizontalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOn)
+        self.ui.graphicsView.setVerticalScrollBarPolicy(QtCore.Qt.ScrollBarAlwaysOn)
     def eventFilter(self, QObject, QEvent):
         """Filter out wheel event from the window - we want to reserve the wheel for other commands"""
-        if QObject == self.ui.graphicsView.viewport() and QEvent.type() == QtCore.QEvent.Wheel:
+        if QObject is self.ui.graphicsView.viewport() and QEvent.type() == QtCore.QEvent.Wheel:
             return True
         return False
-    # def wheelEvent(self, QWheelEvent): # TODO: Fix this handler to forward event
-    #     self.ui.graphicsView.wheelEvent(QWheelEvent)
     def mainKeyPressEvent(self, event):
-        self.imagePanel.tool.key_down(self, event)
         key = event.key()
-        if key == QtCore.Qt.Key_Shift: # Alternate tool
+        if key == self.key_alternate_tool: # Alternate tool
             self.imagePanel.change_tool()
-            self.update()
+            # self.update()
+        elif key == QtCore.Qt.Key_Period: # Browse images, prev <-> next
+            self.ui.next_btn.animateClick()
+        elif key == QtCore.Qt.Key_Comma:
+            self.ui.prev_btn.animateClick()
+        else:
+            self.imagePanel.tool.key_down(self, event)
         # elif key == QtCore.Qt.Key_Equal or key == QtCore.Qt.Key_Plus:
         #     self.zoom(self.scroll_zoom_delta)
         # elif key == QtCore.Qt.Key_Minus:
@@ -469,23 +475,16 @@ class MainWindow(QtGui.QMainWindow):
         # elif key == QtCore.Qt.Key_Space:
         #     # Annotate current position (if for some reason clicking is too hard)
         #     if self.imagePanel.x >= 0:
-        #         point = (self.imagePanel.x/self.imagePanel.current_scale, self.imagePanel.y/self.imagePanel.current_scale)
-        #         radius = self.imagePanel.radius/self.imagePanel.current_scale
+        #         point = (self.imagePanel.x, self.imagePanel.y)
+        #         radius = self.imagePanel.radius
         #         self.add(point, radius, self.imagePanel.label)
         #         # self.populateTree()
-        elif key == QtCore.Qt.Key_Period:
-        # Browse images, prev <-> next
-            self.ui.next_btn.animateClick()
-        elif key == QtCore.Qt.Key_Comma:
-            self.ui.prev_btn.animateClick()
     def mainKeyReleaseEvent(self, event):
+        self.imagePanel.tool.key_up(self, event)
         key = event.key()
-        if key == QtCore.Qt.Key_Shift:
-            # Releasing the mouse button after dragging the image
+        if key == self.key_alternate_tool:
             self.imagePanel.change_tool()
-            self.update()
-            # self.imagePanel.MovingMode = False
-            # self.imagePanel.setCursor(QtGui.QCursor(QtCore.Qt.CrossCursor))
+            # self.update()
     def treeMousePress(self, event):
         """ Mouse events on the tree - select annotations """
         # Check if mouse selected gives a valid item
@@ -493,14 +492,8 @@ class MainWindow(QtGui.QMainWindow):
         if item.isValid():
             QtGui.QTreeWidget.mousePressEvent(self.ui.treeWidget, event)
             selected_item = self.ui.treeWidget.currentItem()
-            selected_index = int(selected_item.text(0))-1
-        else:
-            # Clear previous selections if invalid
-            self.ui.treeWidget.clearSelection()
-            selected_index = -1
-        # Feel selected index to graphics item to highlight item
-        self.imagePanel.highlight_centroid = selected_index
-        self.imagePanel.update()
+            datum = label_dataset.find(int(selected_item.text(0)))
+            self.imagePanel.highlight(datum)
     def treeKeyPress(self, event):
         """ Keyboard events on the tree - move through annotations or delete them """
         selected_item = self.ui.treeWidget.currentItem()
@@ -510,13 +503,10 @@ class MainWindow(QtGui.QMainWindow):
         datum = label_dataset.find(int(selected_item.text(0)))
         do_update = True
         if key == QtCore.Qt.Key_Delete and datum is not None:
-            label_dataset.remove(datum)
             next_item = self.ui.treeWidget.itemAbove(selected_item)
+            self.imagePanel.remove_datum(datum)
             if next_item:
                 self.ui.treeWidget.setCurrentItem(next_item)
-                self.imagePanel.highlight_centroid = int(next_item.text(0)) - 1
-            else:
-                self.imagePanel.highlight_centroid = None
             self.ui.treeWidget.takeTopLevelItem(self.ui.treeWidget.indexOfTopLevelItem(selected_item))
         elif key in [QtCore.Qt.Key_Down, QtCore.Qt.Key_Up]:
             # Navigate through items - highlighting the current selection on the image
@@ -526,14 +516,12 @@ class MainWindow(QtGui.QMainWindow):
                 next_item = self.ui.treeWidget.itemBelow(selected_item)
             if next_item:
                 self.ui.treeWidget.setCurrentItem(next_item)
-                self.imagePanel.highlight_centroid = int(next_item.text(0)) - 1
         else:
             do_update = False
         if do_update:
-            # self.populateTree()
             self.update()
             self.imagePanel.update()
-            self.ui.treeWidget.update()         
+            self.ui.treeWidget.update()
     def change_opacity(self, value):
         """ From the slider, change the opacity of the current annotations """
         self.ui.opacityBox.setTitle('Label Opacity: {}'.format(value))
@@ -560,7 +548,6 @@ class MainWindow(QtGui.QMainWindow):
         """ Load the first image onto graphics view - initialise graphics item """
         # Save original image size
         self.original_size = pixmap.width(), pixmap.height()
-        self.multiplier = float(1)
         self.firstImage = False
         # Set scene and add to graphics view
         self.scene = QtGui.QGraphicsScene()
@@ -589,11 +576,10 @@ class MainWindow(QtGui.QMainWindow):
             assert pixmap.width() == self.original_size[0] and \
                    pixmap.height() == self.original_size[1], \
                 "Images in the folder need to be of the same size"
-
         # Resize according to previous shape/size
         if self.original_size is not None:
-            pixmap = pixmap.scaled(QtCore.QSize(self.original_size[0]*self.multiplier, self.original_size[1]*self.multiplier),
-                                   QtCore.Qt.KeepAspectRatio, QtCore.Qt.SmoothTransformation)
+            pixmap = pixmap.scaled(QtCore.QSize(self.original_size[0], self.original_size[1]),
+                QtCore.Qt.KeepAspectRatio, QtCore.Qt.SmoothTransformation)
         # If its the first time, initialise graphics item
         #@TODO: Edit this to allow multiple-sized images @prority:low
         if self.firstImage:
