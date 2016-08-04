@@ -41,11 +41,11 @@ address these features.
 
 ## Usage
 ### Circle labelling toolbox
-    python circles/circle_labeler.py <img dir> <label dir> 
-    or python -m pychetlabeller.circles.circle_labeller <img dir> <label dir>
+    python objects/object_labeler.py <img dir> <label dir> --tool circle
+    or python -m pychetlabeller.circles.circle_labeller <img dir> <label dir> --tool circle
 
 ### Rectangle labelling toolbox
-    python rectangles/rectangle_labeler.py
+    python objects/object_labeler.py <img dir> <label dir> --tool rectangle
 
 ### Labelling multiple images
 Pychet Labeller makes it very easy to label a group of images in a folder, one
@@ -66,27 +66,26 @@ A few notes:
   scale and position gets stored between images.
 * When labelling multiple images, can enable save_label to automatically save
   the labels - otherwise press ctrl-x to save current annotations
-* Individual annotations can be deleted by selecting them on the table and
+* Individual annotations can be deleted by selecting them on the table (or shift clicking on the image) and
   pressing delete.
 
 ### Annotations
 The annotations are saved in csv format with the same name as the input image
-file. The csv entries for circles are *item, centre-x, centre-y, radius, label id*. The csv entries for rectangles are *item, topleft-x, topleft-y, width, height, label id*.
+file. The csv entries for circles are *item, centre-x, centre-y, radius, label id*. The csv entries for rectangles are *item, topleft-x, topleft-y, width, height, label id*. 
+The annotations are also automatically saved in .svg format
 
 By default the annotations are saved in the image parent directory under a new
-folder: circle-labels/rectangle_labels. The user can choose to manually set a different folder
+folder: labels. The user can choose to manually set a different folder
 for the labels.
 
 ### Single images
-We can also edit circles/circle_labeler.py or rectangles/rectangle_labeler.py to quickly label one image. Under the object
+We can also edit objects/object_labeler.py to quickly label one image. Under the object
 MainWindow, uncomment self.quickview(), then under function quickview() set your image path.
 
 ## Future work
 Extentions to labeller - coming soon:
-* Currently the annotations are saved as csv files. A more standard format would
-  be to use .xml format.
-* The rectangle annotation toolbox has not been thoroughly tested - could have
-  bugs.
+* Currently can choose only one or the other - circles or rectangles - due to strict csv format. Should resort to svg only format and save all shapes
+* Add generic polygon shape - and test other shapes
 * Change brightness and contrast sliders to levels slider. Allows for much better control of the image contrast
 
 ## Bugs
