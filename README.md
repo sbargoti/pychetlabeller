@@ -29,8 +29,10 @@ changes its size and change the labelling output. Pychet Labeller aims to
 address these features.
 
 ## Prerequisites
-  sudo apt-get install libgeos-dev libgeos++-dev
-  sudo -H pip install -U svgwrite shapely
+
+    sudo apt-get install libgeos-dev libgeos++-dev
+    sudo -H pip install -U svgwrite shapely
+    
 ## Installation
 1. Install prerequisites (svgwrite)
 2. Clone this repository
