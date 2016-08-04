@@ -374,7 +374,7 @@ class MainWindow(QtGui.QMainWindow):
         self.imagePanel = None
         self.image_index = None
         self.images = None
-        self.default_directory = None
+        self.default_directory = os.path.expanduser("~")
         self.folder_image = None
         self.pixmap = None
         # Define key and mouse function names
@@ -617,6 +617,7 @@ class MainWindow(QtGui.QMainWindow):
         self.ui.image_index_label.setText('{:.0f}/{:.0f}'.format(self.image_index+1, self.ui.imageComboBox.count()))
     def openImageDirectory(self, folder_image=None):
         """ Open browser containing the set of images to be labelled """
+        opendirectory = self.folder_image or self.default_directory
         self.folder_image = folder_image or \
             str(QtGui.QFileDialog.getExistingDirectory(
                 self, "Open directory", opendirectory))
