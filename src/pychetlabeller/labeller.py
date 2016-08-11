@@ -3,16 +3,18 @@
 Image annotation tool.
 Annotate using circular or rectangular shapes
 """
-__author__ = 'suchet'
-__date__ = '04/08/16' 
-
-
-import sys, os, csv, argparse
+import sys
+import os
+import csv
+import argparse
 import numpy as np
 import svgwrite
 from PyQt4 import QtGui, QtCore
-from pychetlabeller.objects.object_labeller_ui import Ui_MainWindow
-from shapely.geometry import Point, Polygon, box
+from shapely.geometry import Point, box # Polygon
+from .labeller_ui import Ui_MainWindow
+
+__author__ = 'suchet'
+__date__ = '04/08/16' 
 
 my_colormap = [\
 [137, 0, 255], 
@@ -49,13 +51,11 @@ class LabelDataset(object):
         self.saveCSV(label_basename + '.csv')
     def saveSVG(self, output_filename):
         """Save the shapes in SVG format"""
-        dwg = svgwrite.Drawing(output_filename
-            , profile='tiny', size=self.image_size)
+        dwg = svgwrite.Drawing(output_filename, profile='tiny', size=self.image_size)
         for datum in self.data:
             dwg.add(datum.svg_shape())
         dwg.save()
-    def saveCSV(self, output_filename
-        , field_delimiter=',', line_delimiter='\n'):
+    def saveCSV(self, output_filename, field_delimiter=',', line_delimiter='\n'):
         """Save the shapes as CSV"""
         with open(output_filename, 'w') as f:
             for datum in self.data:
@@ -75,7 +75,7 @@ class LabelDataset(object):
                     self.add(LabelCircle(int(line[4]), float(line[1]), float(line[2]), float(line[3])))
             except ValueError:
                 # Things that don't convert will be skipped
-                if not line[0][0] == '#': # ignore comments
+                if line[0][0] != '#': # ignore comments
                     print "WARNING: Skipped a line (ValueError) '%s'" % line
         label_file.close()
     def find(self, labelshape_id):
@@ -169,8 +169,7 @@ class Tool_Rectangle(Tool):
         self.dx, self.dy = float(20), float(20)
         self.label = 1
         self.size_scroll_delta = 2
-        self.resize_x = False
-        self.resize_y = False
+        self.resize_x, self.resize_y = False, False
     def click(self, parent, button, release=False):
         modifiers = QtGui.QApplication.keyboardModifiers()
         point = (self.position.x(), self.position.y())
@@ -189,7 +188,6 @@ class Tool_Rectangle(Tool):
             dy_delta = 0
         elif self.resize_y:
             dx_delta = 0
-
         self.dx += np.sign(delta) * self.size_scroll_delta * dx_delta
         self.dy += np.sign(delta) * self.size_scroll_delta * dy_delta
         parent.update()
@@ -222,7 +220,6 @@ class Tool_Rectangle(Tool):
             self.resize_x = False
         elif key == QtCore.Qt.Key_A:
             self.resize_y = False
-
 
 class Tool_TransformView(Tool):
     def __init__(self):
@@ -323,8 +320,7 @@ class LabelCircle(LabelShape):
             side_width = 2*self.shape.radius
             view.drawEllipse(x , y, side_width, side_width)
     def serialize(self):
-        return (self.id, self.shape.x, self.shape.y
-                , self.shape.radius, self.label)
+        return (self.id, self.shape.x, self.shape.y, self.shape.radius, self.label)
     def svg_shape(self):
         '''return the SVG shape that this object represents'''
         r, g, b = my_colormap[self.label]
@@ -335,13 +331,11 @@ class LabelCircle(LabelShape):
 class SelectDropType(QtGui.QDialog):
     def __init__(self, parent=None):
         super(SelectDropType, self).__init__(parent)
-
         msgBox = QtGui.QMessageBox()
         msgBox.setText('Which folder is this?')
         msgBox.addButton(QtGui.QPushButton('Cancel'), QtGui.QMessageBox.RejectRole)
         msgBox.addButton(QtGui.QPushButton('Labels'), QtGui.QMessageBox.NoRole)
         msgBox.addButton(QtGui.QPushButton('Images'), QtGui.QMessageBox.YesRole)
-
         self.selection = msgBox.exec_()
 
 class ObjectDrawPanel(QtGui.QGraphicsPixmapItem):
@@ -451,8 +445,7 @@ class ObjectDrawPanel(QtGui.QGraphicsPixmapItem):
     def highlight(self, datum):
         self.highlighted_datum = datum
         if datum:
-            item = self.parent.ui.treeWidget.findItems(
-                str(datum.id), QtCore.Qt.MatchExactly, 0)[0]
+            item = self.parent.ui.treeWidget.findItems(str(datum.id), QtCore.Qt.MatchExactly, 0)[0]
             self.parent.ui.treeWidget.setCurrentItem(item)
         self.update()
         self.parent.ui.treeWidget.setFocus()
@@ -499,23 +492,24 @@ class MainWindow(QtGui.QMainWindow):
         # handlers: [UI Element, Signal, Handler]
         handlers = [ \
         # Folder/image navigation
-        [ui.browse_btn, QtCore.SIGNAL("clicked()"), self.openImageDirectory],
-        [ui.label_folder_btn, QtCore.SIGNAL("clicked()"), self.setLabelDirectory],
-        [ui.prev_btn, QtCore.SIGNAL("clicked()"), self.previousImage],
-        [ui.next_btn, QtCore.SIGNAL("clicked()"), self.nextImage],
-        [ui.imageComboBox, QtCore.SIGNAL("currentIndexChanged(QString)"), self.changeImage],
-        [ui.save_btn, QtCore.SIGNAL("clicked()"), self.saveAnnotations],
-        # Menu bar
-        [ui.actionOpen_Folder, QtCore.SIGNAL("triggered()"), self.openImageDirectory],
-        [ui.actionSave_Label, QtCore.SIGNAL("triggered()"), self.saveAnnotations],
-        [ui.actionExit_3, QtCore.SIGNAL("triggered()"), self.close],
-        [ui.actionAbout, QtCore.SIGNAL("triggered()"), self.aboutWindow],
-        [ui.actionLoad_Label, QtCore.SIGNAL("triggered()"), self.loadFromFile],
-        # Annotation tool
-        [ui.opacity_slider, QtCore.SIGNAL('valueChanged(int)'), self.change_opacity],
-        # Imaging properties
-        [ui.brightness_slider, QtCore.SIGNAL('valueChanged(int)'), self.change_brightness],
-        [ui.contrast_slider, QtCore.SIGNAL('valueChanged(int)'), self.change_contrast]]
+         [ui.browse_btn, QtCore.SIGNAL("clicked()"), self.openImageDirectory],
+         [ui.label_folder_btn, QtCore.SIGNAL("clicked()"), self.setLabelDirectory],
+         [ui.prev_btn, QtCore.SIGNAL("clicked()"), self.previousImage],
+         [ui.next_btn, QtCore.SIGNAL("clicked()"), self.nextImage],
+         [ui.imageComboBox, QtCore.SIGNAL("currentIndexChanged(QString)"), self.changeImage],
+         [ui.save_btn, QtCore.SIGNAL("clicked()"), self.saveAnnotations],
+         # Menu bar
+         [ui.actionOpen_Folder, QtCore.SIGNAL("triggered()"), self.openImageDirectory],
+         [ui.actionSave_Label, QtCore.SIGNAL("triggered()"), self.saveAnnotations],
+         [ui.actionExit_3, QtCore.SIGNAL("triggered()"), self.close],
+         [ui.actionAbout, QtCore.SIGNAL("triggered()"), self.aboutWindow],
+         [ui.actionLoad_Label, QtCore.SIGNAL("triggered()"), self.loadFromFile],
+         # Annotation tool
+         [ui.opacity_slider, QtCore.SIGNAL('valueChanged(int)'), self.change_opacity],
+         # Imaging properties
+         [ui.brightness_slider, QtCore.SIGNAL('valueChanged(int)'), self.change_brightness],
+         [ui.contrast_slider, QtCore.SIGNAL('valueChanged(int)'), self.change_contrast]
+        ]
         for handler in handlers:
             self.connect(handler[0], handler[1], handler[2])
         ui.actionSave_Label.setShortcut(QtGui.QKeySequence("Ctrl+s"))
@@ -647,8 +641,8 @@ class MainWindow(QtGui.QMainWindow):
         self.change_brightness_contrast()
         self.scene.addItem(self.imagePanel)
         self.ui.graphicsView.setScene(self.scene)
-        self.ui.graphicsView.setSceneRect(0, 0,
-            self.ui.graphicsView.size().width() - 10,
+        self.ui.graphicsView.setSceneRect(0, 0, \
+            self.ui.graphicsView.size().width() - 10, \
             self.ui.graphicsView.size().height() - 10)
     def populateTree(self):
         """ Update the tree when a new annotation is added """
@@ -662,19 +656,14 @@ class MainWindow(QtGui.QMainWindow):
         self.pixmap = QtGui.QPixmap(image_path)
         pixmap = self.pixmap
         label_dataset = LabelDataset(image_path, image_size=(pixmap.height(), pixmap.width()))
-        if self.original_size is not None:
-            assert pixmap.width() == self.original_size[0] and \
-                   pixmap.height() == self.original_size[1], \
-                "Images in the folder need to be of the same size"
+        if self.firstImage \
+            or pixmap.width() != self.original_size[0] \
+            or pixmap.height() != self.original_size[1]:
+            self.initImage(pixmap)
         # Resize according to previous shape/size
         if self.original_size is not None:
-            pixmap = pixmap.scaled(QtCore.QSize(self.original_size[0], self.original_size[1]),
+            pixmap = pixmap.scaled(QtCore.QSize(self.original_size[0], self.original_size[1]), \
                 QtCore.Qt.KeepAspectRatio, QtCore.Qt.SmoothTransformation)
-        # If its the first time, initialise graphics item
-        #@TODO: Edit this to allow multiple-sized images @prority:low
-        if self.firstImage:
-            self.initImage(pixmap)
-        # Otherwise update previously set graphics item
         self.imagePanel.setPixmap(pixmap)
         self.imagePanel.defaultColorPixmap = pixmap
         self.change_brightness_contrast()
@@ -709,8 +698,7 @@ class MainWindow(QtGui.QMainWindow):
         """ Open browser containing the set of images to be labelled """
         opendirectory = self.folder_image or self.default_directory
         self.folder_image = folder_image or \
-            str(QtGui.QFileDialog.getExistingDirectory(
-                self, "Open directory", opendirectory))
+            str(QtGui.QFileDialog.getExistingDirectory(self, "Open directory", opendirectory))
         # Grab images and set up combobox
         self.images = sorted([x for x in os.listdir(self.folder_image) \
             if os.path.splitext(x)[-1].lower() \
@@ -737,12 +725,13 @@ class MainWindow(QtGui.QMainWindow):
             self.ui.statusBar.showMessage('Created a Label Directory')
             os.makedirs(self.labelFolder)
         # Establish save file
-        save_files = (os.path.join(self.labelFolder, current_filename + '.csv')
-                    , os.path.join(self.labelFolder, current_filename + '.svg'))
+        save_files = (os.path.join(self.labelFolder, current_filename + '.csv') \
+            , os.path.join(self.labelFolder, current_filename + '.svg'))
         # If save file already exists, Ask user if they want to overwrite
         if any(map(os.path.exists, save_files)):
             overwrite_msg = 'Label file already exists for {}, overwrite?'.format(current_filename)
-            reply = QtGui.QMessageBox.question(self, 'File already exists', overwrite_msg, QtGui.QMessageBox.Yes | QtGui.QMessageBox.No)
+            reply = QtGui.QMessageBox.question(self, 'File already exists', overwrite_msg \
+                , QtGui.QMessageBox.Yes | QtGui.QMessageBox.No)
             if reply == QtGui.QMessageBox.Yes:
                 self.ui.statusBar.showMessage('Overwriting previous label')
             else:
@@ -830,10 +819,10 @@ def convertMattoQImage(im, copy=False):
             return qim.copy() if copy else qim
         elif len(im.shape) == 3:
             if im.shape[2] == 3:
-                qim = QtGui.QImage(im.data, im.shape[1], im.shape[0], im.strides[0], QtGui.QImage.Format_RGB888);
+                qim = QtGui.QImage(im.data, im.shape[1], im.shape[0], im.strides[0], QtGui.QImage.Format_RGB888)
                 return qim.copy() if copy else qim
             elif im.shape[2] == 4:
-                qim = QtGui.QImage(im.data, im.shape[1], im.shape[0], im.strides[0], QtGui.QImage.Format_ARGB32);
+                qim = QtGui.QImage(im.data, im.shape[1], im.shape[0], im.strides[0], QtGui.QImage.Format_ARGB32)
                 return qim.copy() if copy else qim
     raise NotImplementedError
 
@@ -843,7 +832,7 @@ def adjustPixmap(pixmap, brightness=0, contrast=0):
     im = pixmap.toImage()
     # Convert to numpy array and adjust
     imcv = np.clip(convertQImageToMat(im)*(1+contrast/100.), 0, 255)
-    imcv = np.clip(imcv+brightness, 0, 255)
+    imcv = np.clip(imcv + brightness, 0, 255)
     # Convert back to pixmap
     im = convertMattoQImage(imcv.astype('uint8'))
     pixmap = QtGui.QPixmap.fromImage(im)
@@ -857,20 +846,18 @@ def parse_args():
     args = parser.parse_args()
     return args
 
-if __name__ == '__main__':
-    args = parse_args()
-
+def main(args=None): 
+    if not args:
+        args = parse_args()
     app = QtGui.QApplication(sys.argv)
-    main = MainWindow()
-    main.tool_str = args.tool
-    main.show()
-
+    main_window = MainWindow()
+    main_window.tool_str = args.tool
+    main_window.show()
     if args.image_folder is not None:
-        main.openImageDirectory(args.image_folder)
+        main_window.openImageDirectory(args.image_folder)
     if args.annotation_folder is not None:
-        main.openImageDirectory(args.annotation_folder)
-
-
-
+        main_window.setLabelDirectory(args.annotation_folder)
     sys.exit(app.exec_())
 
+if __name__ == '__main__':
+    pass
