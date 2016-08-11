@@ -61,7 +61,7 @@ class LabelDataset(object):
             for datum in self.data:
                 serialized = [str(i) for i in datum.serialize()]
                 f.write(field_delimiter.join(serialized) + line_delimiter)
-    def load(self, label_path):
+    def load(self, label_path, tool='circle'):
         '''try load the default path, or given label_path'''
         self.label_path = label_path
         try:
@@ -70,9 +70,11 @@ class LabelDataset(object):
             return False # Couldn't find file
         for line in csv.reader(label_file):
             try:
-                is_circle = True #TODO: complete stub
-                if is_circle:
+                #is_circle = True #TODO: complete stub
+                if tool == 'circle':
                     self.add(LabelCircle(int(line[4]), float(line[1]), float(line[2]), float(line[3])))
+                elif tool == 'rectangle':
+                    self.add(LabelRectangle(int(line[5]), float(line[1]), float(line[2]), float(line[3]), float(line[4])))
             except ValueError:
                 # Things that don't convert will be skipped
                 if line[0][0] != '#': # ignore comments
@@ -292,7 +294,7 @@ class LabelRectangle(LabelShape):
         elif isinstance(view, QtGui.QPainter):
             view.drawRect(x, y, dx, dy)
     def serialize(self):
-        return (LabelRectangle.enum,) + self.get_rect_data() + (self.label,)
+        return (self.id,) + self.get_rect_data() + (self.label,)
     def svg_shape(self):
         '''return the SVG shape that this object represents'''
         r, g, b = my_colormap[self.label]
@@ -691,7 +693,7 @@ class MainWindow(QtGui.QMainWindow):
     def changeImage(self, text):
         """ Call load image and set new image as title, combo box entry and image # """
         self.loadImage("%s/%s" % (self.folder_image, text))
-        self.setWindowTitle("%s - Pychet Circle Annotator" % (self.ui.imageComboBox.currentText()))
+        self.setWindowTitle("{} - Pychet Object Annotator [{}]".format(self.ui.imageComboBox.currentText(), self.tool_str))
         self.image_index = self.ui.imageComboBox.currentIndex()
         self.ui.image_index_label.setText('{:.0f}/{:.0f}'.format(self.image_index+1, self.ui.imageComboBox.count()))
     def openImageDirectory(self, folder_image=None):
@@ -747,11 +749,11 @@ class MainWindow(QtGui.QMainWindow):
                 self, "Open Label File", '.', filters)
             filename = str(f[0])
         #TODO: SVG loading
-        label_dataset.load(filename)
+        label_dataset.load(filename, tool=self.tool_str)
         self.populateTree()
     def aboutWindow(self):
         """ Display information about the software """
-        message = """About the Circle Annotator:
+        message = """About the Object Annotator:
 Object annotation tool.
 Pick image directory (containing .jpg or .png files) and start labelling! Labels saved as .csv in the same parent folder as the images, under folder labels
 The Labels are stored in format: 
