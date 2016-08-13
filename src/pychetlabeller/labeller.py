@@ -3,6 +3,7 @@
 Image annotation tool.
 Annotate using circular or rectangular shapes
 """
+from __future__ import print_function
 import sys
 import os
 import csv
@@ -78,7 +79,7 @@ class LabelDataset(object):
             except ValueError:
                 # Things that don't convert will be skipped
                 if line[0][0] != '#': # ignore comments
-                    print "WARNING: Skipped a line (ValueError) '%s'" % line
+                    print("WARNING: Skipped a line (ValueError) '%s'" % line, file=sys.stderr)
         label_file.close()
     def find(self, labelshape_id):
         '''find a LabelShape given by ID'''
@@ -166,12 +167,14 @@ class Tool_Circle(Tool):
 
 class Tool_Rectangle(Tool):
     '''This tool creates a rectangle when clicked'''
+    RESIZE_X, RESIZE_Y = 2 ** np.arange(2)
     def __init__(self):
         super(Tool_Rectangle, self).__init__()
         self.dx, self.dy = float(20), float(20)
         self.label = 1
-        self.size_scroll_delta = 2
-        self.resize_x, self.resize_y = False, False
+        self.size_scroll_delta = 0.1 # percent
+        self.size_scroll_delta_precise = 1 # pixels
+        self.resize_dim = Tool_Rectangle.RESIZE_X | Tool_Rectangle.RESIZE_Y
     def click(self, parent, button, release=False):
         modifiers = QtGui.QApplication.keyboardModifiers()
         point = (self.position.x(), self.position.y())
@@ -185,13 +188,18 @@ class Tool_Rectangle(Tool):
             parent.add_datum(LabelRectangle(self.label, point[0], point[1], self.dx, self.dy))
     def wheel(self, parent, QWheelEvent):
         delta = QWheelEvent.delta()
-        dx_delta, dy_delta = 1, 1
-        if self.resize_x:
-            dy_delta = 0
-        elif self.resize_y:
-            dx_delta = 0
-        self.dx += np.sign(delta) * self.size_scroll_delta * dx_delta
-        self.dy += np.sign(delta) * self.size_scroll_delta * dy_delta
+        modifiers = QtGui.QApplication.keyboardModifiers()
+        if modifiers == QtCore.Qt.ShiftModifier: # 1-pixel delta mode
+            if self.resize_dim & Tool_Rectangle.RESIZE_X:
+                self.dx = max(1, self.dx + np.sign(delta) * self.size_scroll_delta_precise)
+            if self.resize_dim & Tool_Rectangle.RESIZE_Y:
+                self.dy = max(1, self.dy + np.sign(delta) * self.size_scroll_delta_precise)
+        else: # percent mode
+            if self.resize_dim & Tool_Rectangle.RESIZE_X:
+                self.dx = max(1, self.dx * (1 + np.sign(delta) * self.size_scroll_delta))
+            if self.resize_dim & Tool_Rectangle.RESIZE_Y:
+                self.dy = max(1, self.dy * (1 + np.sign(delta) * self.size_scroll_delta))
+
         parent.update()
         super(Tool_Rectangle, self).wheel(parent, QWheelEvent)
     def paint(self, parent, QPainter, QStyleOptionGraphicsItem, QWidget):
@@ -208,9 +216,9 @@ class Tool_Rectangle(Tool):
             parent.imagePanel.update()
             parent.ui.treeWidget.update()
         elif key == QtCore.Qt.Key_Q:
-            self.resize_x = True
+            self.resize_dim = Tool_Rectangle.RESIZE_X
         elif key == QtCore.Qt.Key_A:
-            self.resize_y = True
+            self.resize_dim = Tool_Rectangle.RESIZE_Y
         else:
             keystr = str(QtCore.QString(QtCore.QChar(key)))
             if keystr and any([keystr == chr(i) for i in xrange(ord('0'), 1 + ord('9'))]):
@@ -218,10 +226,8 @@ class Tool_Rectangle(Tool):
                 parent.ui.item_label_txt.setText(keystr)
     def key_up(self,parent,event):
         key = event.key()
-        if key == QtCore.Qt.Key_Q:
-            self.resize_x = False
-        elif key == QtCore.Qt.Key_A:
-            self.resize_y = False
+        if key in [QtCore.Qt.Key_Q, QtCore.Qt.Key_A]:
+            self.resize_dim = Tool_Rectangle.RESIZE_X | Tool_Rectangle.RESIZE_Y
 
 class Tool_TransformView(Tool):
     def __init__(self):
@@ -451,6 +457,7 @@ class ObjectDrawPanel(QtGui.QGraphicsPixmapItem):
             self.parent.ui.treeWidget.setCurrentItem(item)
         self.update()
         self.parent.ui.treeWidget.setFocus()
+
 class MainWindow(QtGui.QMainWindow):
     """The main window of the GUI - designed using Qt Designer"""
     def __init__(self):
@@ -745,8 +752,7 @@ class MainWindow(QtGui.QMainWindow):
         """load image and associated label data"""
         if filename is None: # If its an empty call, prompt open file
             filters = "Text files (*.csv);;All (*)"
-            f = QtGui.QFileDialog.getOpenFileNameAndFilter(
-                self, "Open Label File", '.', filters)
+            f = QtGui.QFileDialog.getOpenFileNameAndFilter(self, "Open Label File", '.', filters)
             filename = str(f[0])
         #TODO: SVG loading
         label_dataset.load(filename, tool=self.tool_str)
@@ -799,12 +805,9 @@ class FitImageGraphicsView(QtGui.QGraphicsView):
 
 def convertQImageToMat(incomingImage):
     '''  Converts a QImage into an opencv MAT format  '''
-
     incomingImage = incomingImage.convertToFormat(4)
-
     width = incomingImage.width()
     height = incomingImage.height()
-
     ptr = incomingImage.bits()
     ptr.setsize(incomingImage.byteCount())
     arr = np.array(ptr).reshape(height, width, 4)  #  Copies the data
