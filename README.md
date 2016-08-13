@@ -30,31 +30,25 @@ address these features.
 
 ## Prerequisites
 
-    sudo apt-get install libgeos-dev libgeos++-dev
+    sudo apt-get install libgeos-dev libgeos++-dev python-pip python2.7-dev libxext-dev python-qt4 qt4-dev-tools build-essential
     sudo -H pip install -U svgwrite shapely
     
 ## Installation
 1. Install prerequisites (svgwrite)
 2. Clone this repository
-3. Add base directory (where pychetlabeller is stored) to python path by adding the line below to your ~/.bashrc
-
-    git clone https://github.com/sbargoti/pychetlabeller.git pychetlabeller
-    export PYTHONPATH=$PYTHONPATH:$HOME/code/python/development/
+   git clone https://github.com/sbargoti/pychetlabeller.git pychetlabeller
+3. python setup.py build && sudo python setup.py install
 
 ## Usage
 ### Circle labelling toolbox
-    python objects/object_labeler.py <img dir> <label dir> --tool circle
-    or python -m pychetlabeller.circles.circle_labeller <img dir> <label dir> --tool circle
-
-### Rectangle labelling toolbox
-    python objects/object_labeler.py <img dir> <label dir> --tool rectangle
+    python -m pychetlabeller <img dir> <label dir> --tool <circle | rectangle>
 
 ### Labelling multiple images
 Pychet Labeller makes it very easy to label a group of images in a folder, one
 after the other. Simply run the labeller and open up the images directory form the push button on
 the top right.
 
-Annotations are made by simple clickin on the image. The user has the option to
+Annotations are made by simple clicking on the image. The user has the option to
 move the image, change the size of the annotation tool, zoom in/out of the
 image, change the object label, save the label or go to the next image. Press F1
 to view the shortcuts for these things.
@@ -63,13 +57,12 @@ For circles, the size is the radius, and for rectangles, the size is the width
 and height.
 
 A few notes:
-* Currently the program will automatically detect any .jpg and .png files.
-* All images in a folder need to be of the same size. This is because image
-  scale and position gets stored between images.
+* Currently the program will automatically detect any files with extensions: png, jpg, , jpeg, tiff, bmp
 * When labelling multiple images, can enable save_label to automatically save
   the labels - otherwise press ctrl-x to save current annotations
 * Individual annotations can be deleted by selecting them on the table (or shift clicking on the image) and
   pressing delete.
+* Backspace deletes the last annotation added
 
 ### Annotations
 The annotations are saved in csv format with the same name as the input image
