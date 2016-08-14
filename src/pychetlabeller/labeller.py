@@ -168,23 +168,27 @@ class Tool_Circle(Tool):
 class Tool_Rectangle(Tool):
     '''This tool creates a rectangle when clicked'''
     RESIZE_X, RESIZE_Y = 2 ** np.arange(2)
+    MODE_EDGE, MODE_CENTRE = np.arange(2)
     def __init__(self):
         super(Tool_Rectangle, self).__init__()
+        self.mode = Tool_Rectangle.MODE_EDGE
         self.dx, self.dy = float(20), float(20)
         self.label = 1
         self.size_scroll_delta = 0.1 # percent
-        self.size_scroll_delta_precise = 1 # pixels
+        self.size_scroll_delta_precise = 2 # pixels
         self.resize_dim = Tool_Rectangle.RESIZE_X | Tool_Rectangle.RESIZE_Y
     def click(self, parent, button, release=False):
-        modifiers = QtGui.QApplication.keyboardModifiers()
-        point = (self.position.x(), self.position.y())
         if release:
             return
+        modifiers = QtGui.QApplication.keyboardModifiers()
+        point = (self.position.x(), self.position.y())
         if modifiers == QtCore.Qt.ShiftModifier and button == QtCore.Qt.LeftButton:
             datum = sorted(label_dataset.data_at(point))
             if datum:
                 parent.highlight(datum[0])
         elif modifiers == QtCore.Qt.NoModifier and button == QtCore.Qt.LeftButton:
+            if self.mode == Tool_Rectangle.MODE_CENTRE:
+                point = (self.position.x() - self.dx // 2, self.position.y() - self.dy // 2)
             parent.add_datum(LabelRectangle(self.label, point[0], point[1], self.dx, self.dy))
     def wheel(self, parent, QWheelEvent):
         delta = QWheelEvent.delta()
@@ -199,11 +203,13 @@ class Tool_Rectangle(Tool):
                 self.dx = max(1, self.dx * (1 + np.sign(delta) * self.size_scroll_delta))
             if self.resize_dim & Tool_Rectangle.RESIZE_Y:
                 self.dy = max(1, self.dy * (1 + np.sign(delta) * self.size_scroll_delta))
-
         parent.update()
         super(Tool_Rectangle, self).wheel(parent, QWheelEvent)
     def paint(self, parent, QPainter, QStyleOptionGraphicsItem, QWidget):
-        QPainter.drawRect(self.position.x(), self.position.y(), self.dx, self.dy)
+        if self.mode == Tool_Rectangle.MODE_EDGE:
+            QPainter.drawRect(self.position.x(), self.position.y(), self.dx, self.dy)
+        elif self.mode == Tool_Rectangle.MODE_CENTRE:
+            QPainter.drawRect(self.position.x() - self.dx // 2, self.position.y() - self.dy // 2, self.dx, self.dy)
     def enable(self, parent):
         # parent.setCursor(QtGui.QCursor(QtCore.Qt.ArrowCursor))
         parent.setCursor(QtGui.QCursor(QtCore.Qt.CrossCursor))
@@ -215,6 +221,8 @@ class Tool_Rectangle(Tool):
             parent.update()
             parent.imagePanel.update()
             parent.ui.treeWidget.update()
+        elif key == QtCore.Qt.Key_F2:
+            self.mode = 1 - self.mode
         elif key == QtCore.Qt.Key_Q:
             self.resize_dim = Tool_Rectangle.RESIZE_X
         elif key == QtCore.Qt.Key_A:
@@ -224,7 +232,7 @@ class Tool_Rectangle(Tool):
             if keystr and any([keystr == chr(i) for i in xrange(ord('0'), 1 + ord('9'))]):
                 self.label = int(keystr)
                 parent.ui.item_label_txt.setText(keystr)
-    def key_up(self,parent,event):
+    def key_up(self, parent, event):
         key = event.key()
         if key in [QtCore.Qt.Key_Q, QtCore.Qt.Key_A]:
             self.resize_dim = Tool_Rectangle.RESIZE_X | Tool_Rectangle.RESIZE_Y
