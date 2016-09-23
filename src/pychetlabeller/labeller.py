@@ -15,8 +15,8 @@ import numpy as np
 import svgwrite
 import ImageQt
 import cv2
+import skimage
 
-import matplotlib.pyplot as plt
 from PyQt4 import QtGui, QtCore
 from shapely.geometry import Point, box # Polygon
 from .labeller_ui import Ui_MainWindow
@@ -683,14 +683,14 @@ class MainWindow(QtGui.QMainWindow):
         """ Given an image path, load image onto graphics item """
         global label_dataset
         # Get current pixmap
-        # self.pixmap = QtGui.QImage(image_path)
-        cv_img = cv2.imread(image_path)
-        height, width, bytesPerComponent = cv_img.shape
-        bytesPerLine = bytesPerComponent * width
-        # cv2.cvtColor(cv_img, cv2.cv.CV_BGR2RGB, cv_img)
-        qimage = QtGui.QImage(cv_img.data, width, height, bytesPerLine, QtGui.QImage.Format_RGB888)
+        self.pixmap = QtGui.QPixmap(image_path)
+        # cv_img = cv2.imread(image_path)
+        # height, width, bytesPerComponent = cv_img.shape
+        # bytesPerLine = bytesPerComponent* width
+        # # cv2.cvtColor(cv_img, cv2.cv.CV_BGR2RGB, cv_img)
+        # qimage = QtGui.QImage(cv_img.data, width, height, bytesPerLine, QtGui.QImage.Format_RGB888)
         # print(img.shape)
-        self.pixmap = QtGui.QPixmap.fromImage(qimage)
+        # self.pixmap = QtGui.QPixmap.fromImage(qimage)
         # self.pixmap = QtGui.QPixmap(image_path,QtGui.QImage.Format,QtGui.QImage::Format_RGB888)
         pixmap = self.pixmap
         label_dataset = LabelDataset(image_path, image_size=(pixmap.height(), pixmap.width()))
