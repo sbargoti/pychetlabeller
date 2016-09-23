@@ -1,4 +1,7 @@
 #! /usr/bin/python
+# -*- coding: utf-8 -*-
+from __future__ import unicode_literals
+
 """
 Image annotation tool.
 Annotate using circular or rectangular shapes
@@ -10,6 +13,10 @@ import csv
 import argparse
 import numpy as np
 import svgwrite
+import ImageQt
+import cv2
+
+import matplotlib.pyplot as plt
 from PyQt4 import QtGui, QtCore
 from shapely.geometry import Point, box # Polygon
 from .labeller_ui import Ui_MainWindow
@@ -503,6 +510,12 @@ class MainWindow(QtGui.QMainWindow):
         # Set graphics screen properties
         self.setscreenproperties()
         # self.ui.graphicsView.viewport().installEventFilter(self)
+
+        # Reset column widths for the tree widget
+        columnWidths = [50,80,80,50,80]
+        for cidx, cw in enumerate(columnWidths):
+            self.ui.treeWidget.setColumnWidth(cidx, cw)
+
     def connectSignals(self):
         """ Connect all the components on the GUI to respective functions """
         ui = self.ui
@@ -670,7 +683,15 @@ class MainWindow(QtGui.QMainWindow):
         """ Given an image path, load image onto graphics item """
         global label_dataset
         # Get current pixmap
-        self.pixmap = QtGui.QPixmap(image_path)
+        # self.pixmap = QtGui.QImage(image_path)
+        cv_img = cv2.imread(image_path)
+        height, width, bytesPerComponent = cv_img.shape
+        bytesPerLine = bytesPerComponent * width
+        # cv2.cvtColor(cv_img, cv2.cv.CV_BGR2RGB, cv_img)
+        qimage = QtGui.QImage(cv_img.data, width, height, bytesPerLine, QtGui.QImage.Format_RGB888)
+        # print(img.shape)
+        self.pixmap = QtGui.QPixmap.fromImage(qimage)
+        # self.pixmap = QtGui.QPixmap(image_path,QtGui.QImage.Format,QtGui.QImage::Format_RGB888)
         pixmap = self.pixmap
         label_dataset = LabelDataset(image_path, image_size=(pixmap.height(), pixmap.width()))
         if self.firstImage \
@@ -730,7 +751,9 @@ class MainWindow(QtGui.QMainWindow):
             self.labelFolder = dir_path
         else:
             opendirectory = self.folder_image or '.'
-            self.labelFolder = str(QtGui.QFileDialog.getExistingDirectory(self, "Open directory", opendirectory))
+            labelfolderchoice = str(QtGui.QFileDialog.getExistingDirectory(self, "Open directory", opendirectory))
+            if labelfolderchoice:
+                self.labelFolder = labelfolderchoice
     def saveAnnotations(self):
         """Save annotations"""
         # Get the current image file name
@@ -856,6 +879,8 @@ def parse_args():
     parser.add_argument('image_folder', metavar='IF', nargs='?', default=None, help='Image folder')
     parser.add_argument('annotation_folder', metavar='AF', nargs='?', default=None, help='Annotation folder')
     parser.add_argument('--tool', dest='tool', default='circle', help='circle or rectangle', type=str)
+    parser.add_argument('--labelmap', dest='labelmap', default=False, action='store_true', help='Input images in BGR format?')
+    parser.add_argument('--isbgr', dest='isbrg', )
     args = parser.parse_args()
     return args
 
@@ -866,10 +891,10 @@ def main(args=None):
     main_window = MainWindow()
     main_window.tool_str = args.tool
     main_window.show()
-    if args.image_folder is not None:
-        main_window.openImageDirectory(args.image_folder)
     if args.annotation_folder is not None:
         main_window.setLabelDirectory(args.annotation_folder)
+    if args.image_folder is not None:
+        main_window.openImageDirectory(args.image_folder)
     sys.exit(app.exec_())
 
 if __name__ == '__main__':

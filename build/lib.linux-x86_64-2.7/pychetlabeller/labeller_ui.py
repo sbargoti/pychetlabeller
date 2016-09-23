@@ -1,5 +1,5 @@
 # -*- coding: utf-8 -*-
-
+from __future__ import unicode_literals
 # Form implementation generated from reading ui file 'labeller.ui'
 #
 # Created: Mon Nov  2 13:15:18 2015
@@ -230,9 +230,10 @@ class Ui_MainWindow(object):
         self.brightness_box.setTitle(_translate("MainWindow", "Brightness: 0", None))
         self.contrast_box.setTitle(_translate("MainWindow", "Contrast: 0", None))
         self.treeWidget.headerItem().setText(0, _translate("MainWindow", "Item", None))
-        self.treeWidget.headerItem().setText(1, _translate("MainWindow", "Centroid", None))
-        self.treeWidget.headerItem().setText(2, _translate("MainWindow", "Radius", None))
-        self.treeWidget.headerItem().setText(3, _translate("MainWindow", "Label", None))
+        self.treeWidget.headerItem().setText(1, _translate("MainWindow", "Location", None))
+        self.treeWidget.headerItem().setText(2, _translate("MainWindow", "Size", None))
+        self.treeWidget.headerItem().setText(3, _translate("MainWindow", "Label ID", None))
+        self.treeWidget.headerItem().setText(4, _translate("MainWindow", "Label Name", None))
         self.menuFIle.setTitle(_translate("MainWindow", "FIle", None))
         self.menuHere.setTitle(_translate("MainWindow", "Help", None))
         self.toolBar.setWindowTitle(_translate("MainWindow", "toolBar", None))
