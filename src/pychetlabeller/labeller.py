@@ -13,9 +13,6 @@ import csv
 import argparse
 import numpy as np
 import svgwrite
-import ImageQt
-import cv2
-import skimage
 
 from PyQt4 import QtGui, QtCore
 from shapely.geometry import Point, box # Polygon
