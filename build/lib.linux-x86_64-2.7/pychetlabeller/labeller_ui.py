@@ -1,5 +1,3 @@
-# -*- coding: utf-8 -*-
-from __future__ import unicode_literals
 # Form implementation generated from reading ui file 'labeller.ui'
 #
 # Created: Mon Nov  2 13:15:18 2015

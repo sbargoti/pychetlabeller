@@ -37,11 +37,14 @@ address these features.
 1. Install prerequisites (svgwrite)
 2. Clone this repository
    git clone https://github.com/sbargoti/pychetlabeller.git pychetlabeller
-3. python setup.py build && sudo python setup.py install
+3. Build and install
+    python setup.py build && sudo python setup.py install
 
 ## Usage
 ### Circle labelling toolbox
-    python -m pychetlabeller <img dir> <label dir> --tool <circle | rectangle>
+    python -m pychetlabeller <img dir> <label dir> --tool <circle | rectangle> --labelmap <labelmap.json>
+
+See src/pychetlabeller/sample_labelmap.json for example labelmap file
 
 ### Labelling multiple images
 Pychet Labeller makes it very easy to label a group of images in a folder, one

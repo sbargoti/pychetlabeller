@@ -1,12 +1,9 @@
 #! /usr/bin/python
-# -*- coding: utf-8 -*-
-from __future__ import unicode_literals
-
 """
 Image annotation tool.
 Annotate using circular or rectangular shapes
 """
-from __future__ import print_function
+
 import sys
 import os
 import csv
@@ -32,16 +29,17 @@ my_colormap = [\
 [255, 165, 0], 
 [255, 0, 41], 
 [13, 255, 0], 
-[255, 0, 207]]
+[255, 0, 207]] * 20 # Dirty hack to cater for more than 10 objects - will have same colours
 label_dataset = None
 
 class LabelDataset(object):
     '''shape-label dataset class'''
-    def __init__(self, image_path, image_size):
+    def __init__(self, image_path, image_size, labelmap=''):
         self.data = []
         self.image_size = image_size
         self.image_path = image_path
         self.label_path = None
+        self.labelmap = labelmap
     def add(self, datum):
         ''' add a LabelShape to the dataset'''
         assert isinstance(datum, LabelShape)
@@ -77,13 +75,17 @@ class LabelDataset(object):
             try:
                 #is_circle = True #TODO: complete stub
                 if tool == 'circle':
-                    self.add(LabelCircle(int(line[4]), float(line[1]), float(line[2]), float(line[3])))
+                    label_id = int(line[4])
+                    label_name = self.labelmap[ [x['object_id'] for x in self.labelmap].index(label_id) ]['object_name']
+                    self.add(LabelCircle(int(line[4]), float(line[1]), float(line[2]), float(line[3]), label_name=label_name))
                 elif tool == 'rectangle':
-                    self.add(LabelRectangle(int(line[5]), float(line[1]), float(line[2]), float(line[3]), float(line[4])))
+                    label_id = int(line[5])
+                    label_name = self.labelmap[ [x['object_id'] for x in self.labelmap].index(label_id) ]['object_name']
+                    self.add(LabelRectangle(int(line[5]), float(line[1]), float(line[2]), float(line[3]), float(line[4]), label_name=label_name))
             except ValueError:
                 # Things that don't convert will be skipped
                 if line[0][0] != '#': # ignore comments
-                    print("WARNING: Skipped a line (ValueError) '%s'" % line, file=sys.stderr)
+                    print "WARNING: Skipped a line (ValueError) '%s'" % line
         label_file.close()
     def find(self, labelshape_id):
         '''find a LabelShape given by ID'''
@@ -107,6 +109,7 @@ class LabelDataset(object):
 class Tool(object):
     def __init__(self):
         self.position = QtCore.QPointF(0, 0)
+        self.labelmap=None
     def click(self, parent, button, release=False):
         raise NotImplementedError("Tool::click")
     def wheel(self, parent, QWheelEvent):
@@ -141,7 +144,8 @@ class Tool_Circle(Tool):
             if datum:
                 parent.highlight(datum[0])
         elif modifiers == QtCore.Qt.NoModifier and button == QtCore.Qt.LeftButton:
-            parent.add_datum(LabelCircle(self.label, point[0], point[1], self.radius))
+            parent.add_datum(LabelCircle(self.label, point[0], point[1], self.radius,
+                label_name=self.labelmap[ [x['object_id'] for x in self.labelmap].index(self.label) ]['object_name']))
     def wheel(self, parent, QWheelEvent):
         delta = QWheelEvent.delta()
         self.radius += np.sign(delta) * self.radius_scroll_delta
@@ -164,10 +168,16 @@ class Tool_Circle(Tool):
             parent.imagePanel.update()
             parent.ui.treeWidget.update()
         else:
-            keystr = str(QtCore.QString(QtCore.QChar(key)))
-            if keystr and any([keystr == chr(i) for i in xrange(ord('0'), 1 + ord('9'))]):
-                self.label = int(keystr)
+            keystr = str(QtCore.QString(QtCore.QChar(key))).lower()
+            shortcuts = [x['keyboard_shortcut'] for x in self.labelmap]
+            if keystr and keystr in shortcuts:
+                _label = shortcuts.index(keystr)
+                label = self.labelmap[_label]['object_id']
+                self.label = int(label)
                 parent.ui.item_label_txt.setText(keystr)
+            # if keystr and any([keystr == chr(i) for i in xrange(ord('0'), 1 + ord('9'))]):
+            #     self.label = int(keystr)
+                
 
 class Tool_Rectangle(Tool):
     '''This tool creates a rectangle when clicked'''
@@ -193,7 +203,8 @@ class Tool_Rectangle(Tool):
         elif modifiers == QtCore.Qt.NoModifier and button == QtCore.Qt.LeftButton:
             if self.mode == Tool_Rectangle.MODE_CENTRE:
                 point = (self.position.x() - self.dx // 2, self.position.y() - self.dy // 2)
-            parent.add_datum(LabelRectangle(self.label, point[0], point[1], self.dx, self.dy))
+            parent.add_datum(LabelRectangle(self.label, point[0], point[1], self.dx, self.dy, 
+                label_name=self.labelmap[ [x['object_id'] for x in self.labelmap].index(self.label) ]['object_name']))
     def wheel(self, parent, QWheelEvent):
         delta = QWheelEvent.delta()
         modifiers = QtGui.QApplication.keyboardModifiers()
@@ -232,10 +243,16 @@ class Tool_Rectangle(Tool):
         elif key == QtCore.Qt.Key_A:
             self.resize_dim = Tool_Rectangle.RESIZE_Y
         else:
-            keystr = str(QtCore.QString(QtCore.QChar(key)))
-            if keystr and any([keystr == chr(i) for i in xrange(ord('0'), 1 + ord('9'))]):
-                self.label = int(keystr)
+            keystr = str(QtCore.QString(QtCore.QChar(key))).lower()
+            shortcuts = [x['keyboard_shortcut'] for x in self.labelmap]
+            if keystr and keystr in shortcuts:
+                _label = shortcuts.index(keystr)
+                label = self.labelmap[_label]['object_id']
+                self.label = int(label)
                 parent.ui.item_label_txt.setText(keystr)
+            # if keystr and any([keystr == chr(i) for i in xrange(ord('0'), 1 + ord('9'))]):
+            #     self.label = int(keystr)
+            #     parent.ui.item_label_txt.setText(keystr)
     def key_up(self, parent, event):
         key = event.key()
         if key in [QtCore.Qt.Key_Q, QtCore.Qt.Key_A]:
@@ -274,8 +291,9 @@ class Tool_Polygon(Tool):
 class LabelShape(object):
     '''base class of all data'''
     instances = 0
-    def __init__(self, label, shape):
+    def __init__(self, label, shape, label_name=''):
         self.label = label
+        self.label_name = label_name
         self.shape = shape
         self.id = LabelShape.instances
         LabelShape.instances += 1
@@ -294,9 +312,9 @@ class LabelShape(object):
 
 class LabelRectangle(LabelShape):
     enum = 1
-    def __init__(self, label, x, y, dx, dy):
+    def __init__(self, label, x, y, dx, dy, label_name=''):
         rectangle = box(x, y, x+dx, y+dy)
-        super(LabelRectangle, self).__init__(label, rectangle)
+        super(LabelRectangle, self).__init__(label, rectangle, label_name=label_name)
     def get_rect_data(self):
         x1, y1, x2, y2 = self.shape.bounds
         x, y, dx, dy = x1, y1, x2-x1, y2-y1
@@ -309,6 +327,7 @@ class LabelRectangle(LabelShape):
             view.setText(1, "(%d, %d)" % (x, y))
             view.setText(2, "(%d, %d)" % (dx, dy))
             view.setText(3, str(self.label))
+            view.setText(4, str(self.label_name))
         elif isinstance(view, QtGui.QPainter):
             view.drawRect(x, y, dx, dy)
     def serialize(self):
@@ -324,10 +343,10 @@ class LabelRectangle(LabelShape):
 
 class LabelCircle(LabelShape):
     enum = 1
-    def __init__(self, label, x, y, radius):
+    def __init__(self, label, x, y, radius, label_name=''):
         circle = Point(x, y).buffer(radius)
         (circle.x, circle.y, circle.radius) = (x, y, radius)
-        super(LabelCircle, self).__init__(label, circle)
+        super(LabelCircle, self).__init__(label, circle, label_name=label_name)
     def populate_view(self, view, **kwargs):
         if isinstance(view, QtGui.QTreeWidgetItem):
             # NOTE: It is important not to change the first field as it is used for lookup
@@ -335,6 +354,7 @@ class LabelCircle(LabelShape):
             view.setText(1, "(%d, %d)" % (self.shape.x, self.shape.y))
             view.setText(2, str(self.shape.radius))
             view.setText(3, str(self.label))
+            view.setText(4, str(self.label_name))
         elif isinstance(view, QtGui.QPainter):
             (x, y) = (self.shape.x - self.shape.radius, self.shape.y - self.shape.radius)
             side_width = 2*self.shape.radius
@@ -360,7 +380,7 @@ class SelectDropType(QtGui.QDialog):
 
 class ObjectDrawPanel(QtGui.QGraphicsPixmapItem):
     """Establish a pixmap item on which labelling (painting) will be performed"""
-    def __init__(self, pixmap=None, parent=None, scene=None, tool='circle'):
+    def __init__(self, pixmap=None, parent=None, scene=None, tool='circle', labelmap=None):
         self.is_initialised = False
         super(ObjectDrawPanel, self).__init__()
         # Class variables
@@ -381,8 +401,9 @@ class ObjectDrawPanel(QtGui.QGraphicsPixmapItem):
             self.tool = Tool_Rectangle()
         else:
             raise ValueError('Input tool {} not valid'.format(tool))
+        self.tool.labelmap = labelmap
         
-        self.num_labels = 9
+        self.num_labels = len(labelmap)
         self.pen = None
         #TODO: Tidy brushes
         self.highlightbrushes = []
@@ -415,12 +436,12 @@ class ObjectDrawPanel(QtGui.QGraphicsPixmapItem):
             QtGui.QBrush(QtGui.QColor(my_colormap[label_no][0],
             my_colormap[label_no][1],
             my_colormap[label_no][2],
-            self.opacity)) for label_no in range(10)]
+            self.opacity)) for label_no in range(self.num_labels)]
         self.highlightbrushes = [
             QtGui.QBrush(QtGui.QColor(my_colormap[label_no][0],
            my_colormap[label_no][1],
            my_colormap[label_no][2],
-           self.highlight_opacity)) for label_no in range(10)]
+           self.highlight_opacity)) for label_no in range(self.num_labels)]
     def paint(self, QPainter, QStyleOptionGraphicsItem, QWidget):
         """Painter to draw annotations"""
         if not self.is_initialised:
@@ -491,6 +512,7 @@ class MainWindow(QtGui.QMainWindow):
         self.default_directory = os.path.expanduser("~")
         self.folder_image = None
         self.pixmap = None
+        self.labelmap = None
         self.tool_str = 'circle'
         # Define key and mouse function names
         self.key_alternate_tool = QtCore.Qt.Key_Control
@@ -662,7 +684,7 @@ class MainWindow(QtGui.QMainWindow):
         self.firstImage = False
         # Set scene and add to graphics view
         self.scene = QtGui.QGraphicsScene()
-        self.imagePanel = ObjectDrawPanel(scene=self.scene, parent=self, tool=self.tool_str)
+        self.imagePanel = ObjectDrawPanel(scene=self.scene, parent=self, tool=self.tool_str, labelmap=self.labelmap)
         self.imagePanel.setPixmap(self.pixmap)
         self.imagePanel.defaultColorPixmap = self.pixmap
         self.change_brightness_contrast()
@@ -675,22 +697,14 @@ class MainWindow(QtGui.QMainWindow):
         """ Update the tree when a new annotation is added """
         self.ui.treeWidget.clear()
         for datum in label_dataset.data:
-            datum.populate_view(QtGui.QTreeWidgetItem(self.ui.treeWidget))   
+            datum.populate_view(QtGui.QTreeWidgetItem(self.ui.treeWidget))
     def loadImage(self, image_path):
         """ Given an image path, load image onto graphics item """
         global label_dataset
         # Get current pixmap
         self.pixmap = QtGui.QPixmap(image_path)
-        # cv_img = cv2.imread(image_path)
-        # height, width, bytesPerComponent = cv_img.shape
-        # bytesPerLine = bytesPerComponent* width
-        # # cv2.cvtColor(cv_img, cv2.cv.CV_BGR2RGB, cv_img)
-        # qimage = QtGui.QImage(cv_img.data, width, height, bytesPerLine, QtGui.QImage.Format_RGB888)
-        # print(img.shape)
-        # self.pixmap = QtGui.QPixmap.fromImage(qimage)
-        # self.pixmap = QtGui.QPixmap(image_path,QtGui.QImage.Format,QtGui.QImage::Format_RGB888)
         pixmap = self.pixmap
-        label_dataset = LabelDataset(image_path, image_size=(pixmap.height(), pixmap.width()))
+        label_dataset = LabelDataset(image_path, image_size=(pixmap.height(), pixmap.width()), labelmap=self.labelmap)
         if self.firstImage \
             or pixmap.width() != self.original_size[0] \
             or pixmap.height() != self.original_size[1]:
@@ -876,10 +890,28 @@ def parse_args():
     parser.add_argument('image_folder', metavar='IF', nargs='?', default=None, help='Image folder')
     parser.add_argument('annotation_folder', metavar='AF', nargs='?', default=None, help='Annotation folder')
     parser.add_argument('--tool', dest='tool', default='circle', help='circle or rectangle', type=str)
-    parser.add_argument('--labelmap', dest='labelmap', default=False, action='store_true', help='Input images in BGR format?')
+    parser.add_argument('--labelmap', dest='labelmap', default=None, help='JSON file for annotation labels')
     parser.add_argument('--isbgr', dest='isbrg', )
     args = parser.parse_args()
     return args
+
+def parse_labelmap(labelmapfile=None):
+    if labelmapfile is not None and os.path.exists(labelmapfile):
+        import simplejson as json
+        with open(labelmapfile, 'rb') as f:
+            labelmap = json.load(f)
+    else:
+        labelmap = []
+        for i in range(9):
+            cl = dict()
+            cl['object_id'] = i
+            cl['keyboard_shortcut'] = str(i)
+            if i == 0:
+                cl['object_name'] = 'background'
+            else:
+                cl['object_name'] = 'object{}'.format(i)
+            labelmap.append(cl)
+    return labelmap
 
 def main(args=None): 
     if not args:
@@ -887,6 +919,7 @@ def main(args=None):
     app = QtGui.QApplication(sys.argv)
     main_window = MainWindow()
     main_window.tool_str = args.tool
+    main_window.labelmap = parse_labelmap(labelmapfile=args.labelmap)
     main_window.show()
     if args.annotation_folder is not None:
         main_window.setLabelDirectory(args.annotation_folder)
