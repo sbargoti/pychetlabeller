@@ -1,0 +1,52 @@
+[
+    {
+        "object_id": 0,
+        "keyboard_shortcut": "0",
+        "object_name": "background"
+    },
+    {
+        "object_id": 1,
+        "keyboard_shortcut": "1",
+        "object_name": "object1"
+    },
+    {
+        "object_id": 2,
+        "keyboard_shortcut": "2",
+        "object_name": "object2"
+    },    
+    {
+        "object_id": 3,
+        "keyboard_shortcut": "3",
+        "object_name": "object3"
+    },
+    {
+        "object_id": 4,
+        "keyboard_shortcut": "4",
+        "object_name": "object4"
+    },
+    {
+        "object_id": 5,
+        "keyboard_shortcut": "5",
+        "object_name": "object5"
+    },
+    {
+        "object_id": 6,
+        "keyboard_shortcut": "6",
+        "object_name": "object6"
+    },    
+    {
+        "object_id": 7,
+        "keyboard_shortcut": "7",
+        "object_name": "object7"
+    },
+    {
+        "object_id": 8,
+        "keyboard_shortcut": "8",
+        "object_name": "object8"
+    },
+    {
+        "object_id": 9,
+        "keyboard_shortcut": "9",
+        "object_name": "object9"
+    }
+]
